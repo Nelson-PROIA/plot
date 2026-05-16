@@ -1,0 +1,17 @@
+{
+  "name": "acme-app",
+  "prs": [
+    {
+      "number": 42,
+      "title": "Add withdrawal limits",
+      "author": "alex",
+      "files_changed": 3
+    },
+    {
+      "number": 41,
+      "title": "Refactor auth middleware",
+      "author": "sam",
+      "files_changed": 7
+    }
+  ]
+}

@@ -1,0 +1,222 @@
+{
+  "nodes": [
+    {
+      "id": "intent",
+      "type": "intent",
+      "position": { "x": 0, "y": 40 },
+      "data": {
+        "kind": "feature",
+        "surface": "backend",
+        "scope": "M",
+        "summary": "Enforce per-account daily withdrawal limits to satisfy compliance team's new risk policy.",
+        "ticket": "RISK-218"
+      }
+    },
+    {
+      "id": "architecture",
+      "type": "architecture",
+      "position": { "x": 320, "y": 0 },
+      "data": {
+        "modules": [
+          { "id": "api", "label": "api/transfers", "touched": true, "x": 20, "y": 20 },
+          { "id": "limits", "label": "lib/limits", "touched": true, "x": 20, "y": 90 },
+          { "id": "db", "label": "db/accounts", "touched": true, "x": 130, "y": 55 },
+          { "id": "audit", "label": "lib/audit", "touched": false, "x": 130, "y": 125 },
+          { "id": "queue", "label": "queue/notify", "touched": false, "x": 20, "y": 160 }
+        ],
+        "connections": [
+          { "from": "api", "to": "limits" },
+          { "from": "limits", "to": "db" },
+          { "from": "api", "to": "audit" },
+          { "from": "limits", "to": "queue" }
+        ]
+      }
+    },
+    {
+      "id": "alternatives",
+      "type": "alternatives",
+      "position": { "x": 680, "y": 60 },
+      "data": {
+        "question": "Where to enforce the limit?",
+        "chosenIndex": 1,
+        "options": [
+          {
+            "name": "DB trigger check",
+            "summary": "Enforce as a Postgres trigger on the transfers table at write time.",
+            "pros": ["Cannot be bypassed", "Atomic with write"],
+            "cons": ["Hard to test", "Hidden from app logs"],
+            "code": "CREATE TRIGGER check_limit\n  BEFORE INSERT ON transfers\n  FOR EACH ROW\n  EXECUTE FUNCTION enforce_daily_cap();",
+            "whenToUse": "When app-layer enforcement is unreliable across many entry points."
+          },
+          {
+            "name": "Service-layer guard",
+            "summary": "Add a guard in the transfers service that checks today's total before allowing the write.",
+            "pros": ["Easy to test", "Clear error responses", "Visible in logs"],
+            "cons": ["Must remember on every code path", "Race window without row lock"],
+            "code": "async function withdraw(accountId, amount) {\n  const today = await sumToday(accountId);\n  if (today + amount > LIMIT) {\n    throw new LimitExceeded(accountId);\n  }\n  return transfers.insert({ accountId, amount });\n}",
+            "whenToUse": "When you have a single chokepoint for the operation."
+          },
+          {
+            "name": "Async reconciliation",
+            "summary": "Allow writes, then a background job flags accounts that exceed the cap retroactively.",
+            "pros": ["No write-path latency", "Simple insert path"],
+            "cons": ["Cap is advisory, not enforced", "Compliance won't accept"],
+            "code": "// cron: every 5 min\nfor (const a of accountsOverCap()) {\n  await flagAccount(a.id, 'over-daily-cap');\n}",
+            "whenToUse": "When the limit is a soft signal, not a hard policy."
+          }
+        ]
+      }
+    },
+    {
+      "id": "change-withdraw",
+      "type": "change",
+      "position": { "x": 0, "y": 560 },
+      "data": {
+        "symbol": "withdraw",
+        "file": "lib/transfers.ts",
+        "beforeSteps": 3,
+        "afterSteps": 5,
+        "beforeMermaid": "flowchart TD\n  A[validate amount] --> B[insert transfer]\n  B --> C[emit event]",
+        "afterMermaid": "flowchart TD\n  A[validate amount] --> B[lock account row]\n  B --> C[sum today's withdrawals]\n  C --> D{over limit?}\n  D -- yes --> E[throw LimitExceeded]\n  D -- no --> F[insert transfer]\n  F --> G[emit event]"
+      }
+    },
+    {
+      "id": "change-sumToday",
+      "type": "change",
+      "position": { "x": 660, "y": 560 },
+      "data": {
+        "symbol": "sumToday",
+        "file": "lib/limits.ts",
+        "beforeSteps": 0,
+        "afterSteps": 3,
+        "afterMermaid": "flowchart TD\n  A[query transfers] --> B[filter today]\n  B --> C[sum amount]"
+      }
+    },
+    {
+      "id": "risk-race",
+      "type": "risk",
+      "position": { "x": 0, "y": 800 },
+      "data": {
+        "rule": "Race condition between check and write",
+        "file": "lib/transfers.ts",
+        "line": 47,
+        "rationale": "Without a row lock on the account, two concurrent withdrawals can both pass the cap check before either commits.",
+        "severity": "high",
+        "codeExcerpt": "const today = await sumToday(accountId);\nif (today + amount > LIMIT) throw new LimitExceeded();\nawait transfers.insert({ accountId, amount });"
+      }
+    },
+    {
+      "id": "risk-error",
+      "type": "risk",
+      "position": { "x": 660, "y": 800 },
+      "data": {
+        "rule": "Untyped error surfaced to client",
+        "file": "api/transfers/route.ts",
+        "line": 22,
+        "rationale": "LimitExceeded is thrown but the route handler catches a generic Error and returns 500 instead of 429.",
+        "severity": "medium"
+      }
+    },
+    {
+      "id": "diff",
+      "type": "diff",
+      "position": { "x": 340, "y": 1000 },
+      "data": {
+        "additions": 84,
+        "deletions": 12,
+        "files": [
+          { "path": "lib/transfers.ts", "additions": 22, "deletions": 8 },
+          { "path": "lib/limits.ts", "additions": 41, "deletions": 0 },
+          { "path": "api/transfers/route.ts", "additions": 21, "deletions": 4 }
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-intent-architecture",
+      "source": "intent",
+      "target": "architecture",
+      "animated": true
+    },
+    {
+      "id": "e-architecture-alternatives",
+      "source": "architecture",
+      "target": "alternatives",
+      "animated": true
+    },
+    {
+      "id": "e-alternatives-change-withdraw",
+      "source": "alternatives",
+      "target": "change-withdraw",
+      "animated": true
+    },
+    {
+      "id": "e-change-withdraw-change-sumToday",
+      "source": "change-withdraw",
+      "target": "change-sumToday",
+      "animated": true,
+      "data": { "label": "calls" }
+    },
+    {
+      "id": "e-change-withdraw-risk-race",
+      "source": "change-withdraw",
+      "target": "risk-race",
+      "data": { "relationship": "risk" }
+    },
+    {
+      "id": "e-change-sumToday-risk-error",
+      "source": "change-sumToday",
+      "target": "risk-error",
+      "data": { "relationship": "risk" }
+    },
+    {
+      "id": "e-change-withdraw-diff",
+      "source": "change-withdraw",
+      "target": "diff",
+      "animated": true
+    }
+  ],
+  "tour": [
+    {
+      "nodeId": "intent",
+      "title": "Why this PR exists",
+      "caption": "Compliance asked for a per-account daily withdrawal cap. The change is a small backend feature scoped to a single ticket."
+    },
+    {
+      "nodeId": "architecture",
+      "title": "What it touches",
+      "caption": "Three modules see edits: the transfers API, the new limits library, and the accounts DB layer. Audit and notify are unchanged."
+    },
+    {
+      "nodeId": "alternatives",
+      "title": "The decision",
+      "caption": "A service-layer guard won over a DB trigger and async reconciliation. The trigger is bypass-proof but invisible; reconciliation is too soft for compliance."
+    },
+    {
+      "nodeId": "change-withdraw",
+      "title": "The hot path",
+      "caption": "withdraw() picks up two new steps: lock the account row and sum today's transfers before allowing the insert."
+    },
+    {
+      "nodeId": "change-sumToday",
+      "title": "The new helper",
+      "caption": "sumToday() is brand-new — queries today's transfers for an account and returns the running total."
+    },
+    {
+      "nodeId": "risk-race",
+      "title": "The high-severity catch",
+      "caption": "Without the row lock, two concurrent withdrawals can both pass the cap check before either commits. This is the headline risk in the PR."
+    },
+    {
+      "nodeId": "risk-error",
+      "title": "The smaller catch",
+      "caption": "The route still wraps the typed LimitExceeded inside a generic 500. Easy fix — surface it as a 429."
+    },
+    {
+      "nodeId": "diff",
+      "title": "Total footprint",
+      "caption": "Three files, +84 / −12. Most of the addition is the new limits.ts module."
+    }
+  ]
+}

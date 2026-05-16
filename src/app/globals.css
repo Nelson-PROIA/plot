@@ -1,26 +1,531 @@
 @import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-border: var(--border);
+
+  --color-node-intent: var(--accent-intent);
+  --color-node-architecture: var(--accent-architecture);
+  --color-node-change: var(--accent-change);
+  --color-node-alternatives: var(--accent-alternatives);
+  --color-node-risk: var(--accent-risk);
+  --color-node-diff: var(--accent-diff);
+
+  --font-sans: var(--font-sans-stack);
+  --font-mono: var(--font-mono-stack);
+
+  --radius-card: 12px;
+  --radius-inner: 6px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ─── Light (default) ─── */
+:root {
+  --bg: #f7f7f7;
+  --fg: #18181b;
+  --muted: #52525b;
+  --subtle: #ffffff;
+  --border: #d4d4d8;
+
+  --font-sans-stack: var(--font-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono-stack: var(--font-mono), ui-monospace, SFMono-Regular, monospace;
+
+  --accent-intent: #7c3aed;
+  --accent-architecture: #0d9488;
+  --accent-change: #2563eb;
+  --accent-alternatives: #d97706;
+  --accent-risk: #dc2626;
+  --accent-diff: #52525b;
+
+  --rf-bg: #f7f7f7;
+  --rf-grid: #c4c4ca;
+  --rf-edge: #71717a;
+  --rf-edge-risk: #b91c1c;
+  --rf-controls-bg: rgba(255, 255, 255, 0.92);
+  --rf-controls-border: #d4d4d8;
+  --rf-mask: rgba(247, 247, 247, 0.5);
+  --rf-mask-stroke: #18181b;
+  --rf-node-stroke: rgba(0, 0, 0, 0.18);
+  --rf-minimap-bg: #ffffff;
+
+  --code-bg: #f4f4f5;
+  --code-fg: #1f1f23;
+  --code-border: #e4e4e7;
+
+  --chosen-bg: linear-gradient(180deg, rgba(217, 119, 6, 0.10) 0%, rgba(217, 119, 6, 0.02) 100%);
+  --chosen-border: rgba(217, 119, 6, 0.5);
+  --chosen-pill-bg: rgba(217, 119, 6, 0.16);
+
+  --tint-added-bg: rgba(16, 185, 129, 0.10);
+  --tint-added-border: rgba(16, 185, 129, 0.4);
+  --tint-added-fg: #047857;
+  --tint-removed-bg: rgba(220, 38, 38, 0.10);
+  --tint-removed-border: rgba(220, 38, 38, 0.4);
+  --tint-removed-fg: #b91c1c;
+
+  --severity-high-bg: rgba(220, 38, 38, 0.10);
+  --severity-high-border: rgba(220, 38, 38, 0.55);
+  --severity-high-fg: #b91c1c;
+  --severity-medium-bg: rgba(217, 119, 6, 0.10);
+  --severity-medium-border: rgba(217, 119, 6, 0.55);
+  --severity-medium-fg: #b45309;
+  --severity-low-bg: transparent;
+  --severity-low-border: #d4d4d8;
+  --severity-low-fg: #52525b;
+
+  --arch-bg: rgba(0, 0, 0, 0.035);
+  --arch-grid-dot: rgba(0, 0, 0, 0.10);
+  --arch-untouched-fill: rgba(0, 0, 0, 0.025);
+  --arch-untouched-stroke: #a1a1aa;
+  --arch-untouched-text: #71717a;
+  --arch-touched-fill: rgba(220, 38, 38, 0.10);
+  --arch-touched-stroke: #dc2626;
+  --arch-touched-text: #b91c1c;
+  --arch-connection-default: #c4c4ca;
+  --arch-connection-touched: #dc2626;
+}
+
+/* ─── Dark ─── */
+html.dark {
+  --bg: #0a0a0c;
+  --fg: #f5f5f4;
+  --muted: #9a9994;
+  --subtle: #1c1c20;
+  --border: #2a2a2e;
+
+  --accent-intent: #a78bfa;
+  --accent-architecture: #2dd4bf;
+  --accent-change: #60a5fa;
+  --accent-alternatives: #fbbf24;
+  --accent-risk: #f87171;
+  --accent-diff: #a8a29e;
+
+  --rf-bg: #0a0a0c;
+  --rf-grid: #2a2a2e;
+  --rf-edge: #888780;
+  --rf-edge-risk: #a32d2d;
+  --rf-controls-bg: rgba(28, 28, 32, 0.85);
+  --rf-controls-border: #2a2a2e;
+  --rf-mask: rgba(10, 10, 12, 0.55);
+  --rf-mask-stroke: #f5f5f4;
+  --rf-node-stroke: rgba(255, 255, 255, 0.18);
+  --rf-minimap-bg: #14141a;
+
+  --code-bg: rgba(0, 0, 0, 0.4);
+  --code-fg: #f5f5f4;
+  --code-border: rgba(255, 255, 255, 0.08);
+
+  --chosen-bg: linear-gradient(180deg, rgba(251, 191, 36, 0.12) 0%, rgba(251, 191, 36, 0.04) 100%);
+  --chosen-border: rgba(251, 191, 36, 0.45);
+  --chosen-pill-bg: rgba(251, 191, 36, 0.18);
+
+  --tint-added-bg: rgba(52, 211, 153, 0.08);
+  --tint-added-border: rgba(52, 211, 153, 0.35);
+  --tint-added-fg: #6ee7b7;
+  --tint-removed-bg: rgba(248, 113, 113, 0.08);
+  --tint-removed-border: rgba(248, 113, 113, 0.35);
+  --tint-removed-fg: #fca5a5;
+
+  --severity-high-bg: rgba(248, 113, 113, 0.10);
+  --severity-high-border: rgba(248, 113, 113, 0.5);
+  --severity-high-fg: #fca5a5;
+  --severity-medium-bg: rgba(251, 191, 36, 0.10);
+  --severity-medium-border: rgba(251, 191, 36, 0.5);
+  --severity-medium-fg: #fbbf24;
+  --severity-low-bg: transparent;
+  --severity-low-border: rgba(245, 245, 244, 0.2);
+  --severity-low-fg: #a8a29e;
+
+  --arch-bg: rgba(0, 0, 0, 0.3);
+  --arch-grid-dot: rgba(255, 255, 255, 0.07);
+  --arch-untouched-fill: rgba(255, 255, 255, 0.02);
+  --arch-untouched-stroke: #3a3a3e;
+  --arch-untouched-text: #71706b;
+  --arch-touched-fill: rgba(248, 113, 113, 0.12);
+  --arch-touched-stroke: #f87171;
+  --arch-touched-text: #fca5a5;
+  --arch-connection-default: #3a3a3e;
+  --arch-connection-touched: #f87171;
+}
+
+html,
+body {
+  font-family: var(--font-sans-stack);
+  font-weight: 400;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+.font-mono {
+  font-family: var(--font-mono-stack);
+}
+
+/* React Flow theming */
+.react-flow {
+  background: var(--rf-bg);
+}
+
+.react-flow__background circle,
+.react-flow__background path {
+  fill: var(--rf-grid);
+  stroke: var(--rf-grid);
+}
+
+.react-flow__minimap {
+  background: var(--rf-minimap-bg) !important;
+  border: 0.5px solid var(--rf-controls-border);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+}
+
+.react-flow__minimap-mask {
+  fill: var(--rf-mask);
+  stroke: var(--rf-mask-stroke);
+  stroke-width: 1.5;
+  stroke-opacity: 0.5;
+}
+
+.react-flow__edge-path {
+  stroke: var(--rf-edge);
+  stroke-width: 1;
+}
+
+.react-flow__edge.edge-risk .react-flow__edge-path {
+  stroke: var(--rf-edge-risk);
+  stroke-width: 1.25;
+  stroke-dasharray: none !important;
+}
+
+
+.react-flow__edge .react-flow__edge-textbg {
+  fill: var(--subtle);
+}
+
+.react-flow__edge .react-flow__edge-text {
+  fill: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.react-flow__attribution {
+  display: none;
+}
+
+.react-flow__handle {
+  pointer-events: none;
+}
+
+/* Kill the default RF selection outline — nodes already convey selection via
+   their NodeShell accent border. */
+.react-flow__node {
+  outline: none !important;
+  box-shadow: none;
+}
+.react-flow__node.selected,
+.react-flow__node:focus,
+.react-flow__node:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+.react-flow__node.selected > * {
+  outline: none !important;
+}
+
+/* Edge highlighting */
+.react-flow__edge {
+  transition: opacity 200ms ease-out;
+}
+
+.react-flow__edge.is-dim {
+  opacity: 0.15;
+}
+
+.react-flow__node {
+  transition: opacity 200ms ease-out;
+}
+
+.react-flow__node.is-dim {
+  opacity: 0.25;
+}
+
+/* Edge dash flow */
+@keyframes edge-flow {
+  to {
+    stroke-dashoffset: -16;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.react-flow__edge.animated .react-flow__edge-path {
+  animation: edge-flow 0.9s linear infinite;
+}
+
+/* Node animations */
+@keyframes node-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-risk) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-risk) 25%, transparent);
+  }
+}
+
+.node-pulse {
+  animation: node-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes mod-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 2px color-mix(in srgb, var(--arch-touched-stroke) 45%, transparent));
+  }
+  50% {
+    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--arch-touched-stroke) 75%, transparent));
+  }
+}
+
+.mod-glow {
+  animation: mod-glow 2.2s ease-in-out infinite;
+}
+
+/* Tour spotlight */
+.tour-spotlight {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-alternatives) 80%, transparent),
+    0 0 0 8px color-mix(in srgb, var(--accent-alternatives) 18%, transparent),
+    0 10px 40px color-mix(in srgb, var(--accent-alternatives) 25%, transparent) !important;
+}
+
+/* ─── react-diff-view theming ───────────────────────────────────────────── */
+:root {
+  --diff-insert-bg: rgba(16, 185, 129, 0.16);
+  --diff-insert-bg-strong: rgba(16, 185, 129, 0.32);
+  --diff-insert-fg: #065f46;
+  --diff-insert-marker-bg: rgba(16, 185, 129, 0.28);
+  --diff-delete-bg: rgba(220, 38, 38, 0.14);
+  --diff-delete-bg-strong: rgba(220, 38, 38, 0.32);
+  --diff-delete-fg: #991b1b;
+  --diff-delete-marker-bg: rgba(220, 38, 38, 0.26);
+}
+html.dark {
+  --diff-insert-bg: rgba(52, 211, 153, 0.14);
+  --diff-insert-bg-strong: rgba(52, 211, 153, 0.28);
+  --diff-insert-fg: #d1fae5;
+  --diff-insert-marker-bg: rgba(52, 211, 153, 0.22);
+  --diff-delete-bg: rgba(248, 113, 113, 0.14);
+  --diff-delete-bg-strong: rgba(248, 113, 113, 0.28);
+  --diff-delete-fg: #fecaca;
+  --diff-delete-marker-bg: rgba(248, 113, 113, 0.22);
+}
+
+.surface-diff {
+  background: var(--subtle);
+}
+
+.surface-diff .diff {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono-stack);
+  font-size: 11.5px;
+  color: var(--fg);
+  table-layout: fixed;
+}
+
+.surface-diff .diff-split td {
+  width: 50%;
+}
+
+.surface-diff .diff td {
+  padding: 0;
+  vertical-align: top;
+}
+
+.surface-diff .diff-gutter,
+.surface-diff .diff-gutter-col {
+  width: 44px;
+  padding: 0 8px;
+  font-family: var(--font-mono-stack);
+  font-size: 10.5px;
+  color: var(--muted);
+  background: var(--subtle);
+  user-select: none;
+  text-align: right;
+  border-right: 1px solid var(--border);
+  position: relative;
+}
+
+.surface-diff .diff-code {
+  padding: 1px 10px 1px 22px;
+  white-space: pre;
+  background: var(--subtle);
+  color: var(--fg);
+  position: relative;
+}
+
+/* Insert / delete row background + foreground */
+.surface-diff .diff-line-insert .diff-code {
+  background: var(--diff-insert-bg);
+  color: var(--diff-insert-fg);
+}
+.surface-diff .diff-line-insert .diff-gutter {
+  background: var(--diff-insert-bg-strong);
+  color: var(--diff-insert-fg);
+}
+.surface-diff .diff-line-delete .diff-code {
+  background: var(--diff-delete-bg);
+  color: var(--diff-delete-fg);
+}
+.surface-diff .diff-line-delete .diff-gutter {
+  background: var(--diff-delete-bg-strong);
+  color: var(--diff-delete-fg);
+}
+
+/* Explicit +/− markers in front of every changed line */
+.surface-diff .diff-line-insert .diff-code::before {
+  content: "+";
+  position: absolute;
+  left: 6px;
+  top: 1px;
+  width: 12px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--diff-insert-fg);
+}
+.surface-diff .diff-line-delete .diff-code::before {
+  content: "−";
+  position: absolute;
+  left: 6px;
+  top: 1px;
+  width: 12px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--diff-delete-fg);
+}
+.surface-diff .diff-line-normal .diff-code::before {
+  content: " ";
+  position: absolute;
+  left: 6px;
+  top: 1px;
+  width: 12px;
+  text-align: center;
+}
+
+/* Hunk decoration ("@@ −38,12 +38,26 @@") */
+.surface-diff .diff-decoration {
+  background: var(--code-bg);
+  color: var(--muted);
+  font-size: 10.5px;
+  padding: 4px 12px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.surface-diff .diff-decoration .diff-decoration-content {
+  padding: 0;
+}
+
+.surface-diff .diff-line-omit .diff-gutter,
+.surface-diff .diff-line-omit .diff-code {
+  background: var(--code-bg);
+  color: var(--muted);
+}
+
+/* Prism-style syntax tokens emitted by react-diff-view's tokenize */
+.surface-diff .token.comment,
+.surface-diff .token.prolog,
+.surface-diff .token.doctype,
+.surface-diff .token.cdata {
+  color: #6b7280;
+  font-style: italic;
+}
+.surface-diff .token.punctuation {
+  color: #4b5563;
+}
+.surface-diff .token.property,
+.surface-diff .token.tag,
+.surface-diff .token.boolean,
+.surface-diff .token.number,
+.surface-diff .token.constant,
+.surface-diff .token.symbol,
+.surface-diff .token.deleted {
+  color: #db2777;
+}
+.surface-diff .token.selector,
+.surface-diff .token.attr-name,
+.surface-diff .token.string,
+.surface-diff .token.char,
+.surface-diff .token.builtin,
+.surface-diff .token.inserted {
+  color: #047857;
+}
+.surface-diff .token.operator,
+.surface-diff .token.entity,
+.surface-diff .token.url,
+.surface-diff .language-css .token.string,
+.surface-diff .style .token.string {
+  color: #6b7280;
+}
+.surface-diff .token.atrule,
+.surface-diff .token.attr-value,
+.surface-diff .token.keyword {
+  color: #7c3aed;
+}
+.surface-diff .token.function,
+.surface-diff .token.class-name {
+  color: #2563eb;
+}
+.surface-diff .token.regex,
+.surface-diff .token.important,
+.surface-diff .token.variable {
+  color: #ea580c;
+}
+
+html.dark .surface-diff .token.comment,
+html.dark .surface-diff .token.prolog,
+html.dark .surface-diff .token.doctype,
+html.dark .surface-diff .token.cdata {
+  color: #94a3b8;
+}
+html.dark .surface-diff .token.punctuation {
+  color: #cbd5e1;
+}
+html.dark .surface-diff .token.property,
+html.dark .surface-diff .token.tag,
+html.dark .surface-diff .token.boolean,
+html.dark .surface-diff .token.number,
+html.dark .surface-diff .token.constant,
+html.dark .surface-diff .token.symbol,
+html.dark .surface-diff .token.deleted {
+  color: #f472b6;
+}
+html.dark .surface-diff .token.selector,
+html.dark .surface-diff .token.attr-name,
+html.dark .surface-diff .token.string,
+html.dark .surface-diff .token.char,
+html.dark .surface-diff .token.builtin,
+html.dark .surface-diff .token.inserted {
+  color: #86efac;
+}
+html.dark .surface-diff .token.operator,
+html.dark .surface-diff .token.entity,
+html.dark .surface-diff .token.url {
+  color: #cbd5e1;
+}
+html.dark .surface-diff .token.atrule,
+html.dark .surface-diff .token.attr-value,
+html.dark .surface-diff .token.keyword {
+  color: #c4b5fd;
+}
+html.dark .surface-diff .token.function,
+html.dark .surface-diff .token.class-name {
+  color: #93c5fd;
+}
+html.dark .surface-diff .token.regex,
+html.dark .surface-diff .token.important,
+html.dark .surface-diff .token.variable {
+  color: #fdba74;
 }

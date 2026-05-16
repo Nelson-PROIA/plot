@@ -1,0 +1,240 @@
+{
+  "nodes": [
+    {
+      "id": "intent",
+      "type": "intent",
+      "position": { "x": 0, "y": 40 },
+      "data": {
+        "kind": "refactor",
+        "surface": "backend",
+        "scope": "L",
+        "summary": "Replace ad-hoc session token reads scattered across routes with a centralized auth middleware, fixing the compliance issue where tokens leak into request logs.",
+        "ticket": "SEC-119"
+      }
+    },
+    {
+      "id": "architecture",
+      "type": "architecture",
+      "position": { "x": 320, "y": 0 },
+      "data": {
+        "modules": [
+          { "id": "mw", "label": "middleware.ts", "touched": true, "x": 20, "y": 20 },
+          { "id": "auth", "label": "lib/auth", "touched": true, "x": 20, "y": 90 },
+          { "id": "session", "label": "lib/session", "touched": true, "x": 20, "y": 160 },
+          { "id": "db", "label": "db/sessions", "touched": true, "x": 130, "y": 55 },
+          { "id": "logger", "label": "lib/logger", "touched": true, "x": 130, "y": 125 },
+          { "id": "routes", "label": "api/*", "touched": false, "x": 130, "y": 165 }
+        ],
+        "connections": [
+          { "from": "mw", "to": "auth" },
+          { "from": "auth", "to": "session" },
+          { "from": "session", "to": "db" },
+          { "from": "auth", "to": "logger" },
+          { "from": "mw", "to": "routes" }
+        ]
+      }
+    },
+    {
+      "id": "alternatives",
+      "type": "alternatives",
+      "position": { "x": 680, "y": 60 },
+      "data": {
+        "question": "Where should auth run?",
+        "chosenIndex": 0,
+        "options": [
+          {
+            "name": "Edge middleware",
+            "summary": "Validate the session in a single middleware that runs before any route handler.",
+            "pros": [
+              "One place to audit",
+              "Routes stay pure",
+              "Compliance reviews one file"
+            ],
+            "cons": [
+              "All routes need same auth shape",
+              "Cannot skip per-route easily"
+            ],
+            "code": "export async function middleware(req) {\n  const session = await getSession(req);\n  if (!session) {\n    return Response.redirect('/login');\n  }\n  return NextResponse.next();\n}",
+            "whenToUse": "When auth requirements are uniform across the API surface."
+          },
+          {
+            "name": "Per-route guards",
+            "summary": "Each route imports and calls a guard helper at the top.",
+            "pros": ["Explicit per route", "Easy to vary requirements"],
+            "cons": [
+              "Must remember on every new route",
+              "Reviewers miss missing guards",
+              "Compliance audits N files"
+            ],
+            "code": "export async function POST(req) {\n  const session = await requireAuth(req);\n  // ...handler\n}",
+            "whenToUse": "When per-route auth requirements vary significantly."
+          },
+          {
+            "name": "Decorator pattern",
+            "summary": "Wrap each handler with a withAuth() higher-order function.",
+            "pros": ["Composable", "Type-safe"],
+            "cons": ["Adds indirection", "Harder for new contributors to grok"],
+            "code": "export const POST = withAuth(async (req, session) => {\n  // ...handler\n});",
+            "whenToUse": "When auth has multiple variants composed of smaller checks."
+          }
+        ]
+      }
+    },
+    {
+      "id": "change-getSession",
+      "type": "change",
+      "position": { "x": 0, "y": 560 },
+      "data": {
+        "symbol": "getSession",
+        "file": "lib/session.ts",
+        "beforeSteps": 4,
+        "afterSteps": 3,
+        "beforeMermaid": "flowchart TD\n  A[read cookie] --> B[parse token]\n  B --> C[log full headers]\n  C --> D[fetch user]",
+        "afterMermaid": "flowchart TD\n  A[read cookie] --> B[validate via lib/auth]\n  B --> C[fetch user]"
+      }
+    },
+    {
+      "id": "change-loginHandler",
+      "type": "change",
+      "position": { "x": 660, "y": 560 },
+      "data": {
+        "symbol": "loginHandler",
+        "file": "api/auth/login/route.ts",
+        "beforeSteps": 5,
+        "afterSteps": 6,
+        "beforeMermaid": "flowchart TD\n  A[parse body] --> B[verify password]\n  B --> C[issue token]\n  C --> D[Set-Cookie token]\n  D --> E[return 200]",
+        "afterMermaid": "flowchart TD\n  A[parse body] --> B[verify password]\n  B --> C[create session row]\n  C --> D[Set-Cookie sid HttpOnly Secure]\n  D --> E[set CSRF token]\n  E --> F[return 200]"
+      }
+    },
+    {
+      "id": "risk-log",
+      "type": "risk",
+      "position": { "x": 0, "y": 800 },
+      "data": {
+        "rule": "Session token written to access log",
+        "file": "lib/logger.ts",
+        "line": 28,
+        "rationale": "The previous middleware logged the full request including the Authorization header. Tokens ended up in access logs that compliance flagged in the last quarterly review.",
+        "severity": "high",
+        "codeExcerpt": "logger.info('request', {\n  method: req.method,\n  path: req.url,\n  headers: req.headers, // contains Authorization\n});"
+      }
+    },
+    {
+      "id": "risk-samesite",
+      "type": "risk",
+      "position": { "x": 660, "y": 800 },
+      "data": {
+        "rule": "Cookie SameSite attribute missing",
+        "file": "api/auth/login/route.ts",
+        "line": 41,
+        "rationale": "Set-Cookie does not declare SameSite. Browsers default to Lax but explicit Strict prevents CSRF in cross-site iframe scenarios.",
+        "severity": "medium"
+      }
+    },
+    {
+      "id": "diff",
+      "type": "diff",
+      "position": { "x": 330, "y": 1000 },
+      "data": {
+        "additions": 156,
+        "deletions": 98,
+        "files": [
+          { "path": "middleware.ts", "additions": 38, "deletions": 4 },
+          { "path": "lib/auth.ts", "additions": 52, "deletions": 0 },
+          { "path": "lib/session.ts", "additions": 24, "deletions": 31 },
+          { "path": "lib/logger.ts", "additions": 8, "deletions": 12 },
+          { "path": "api/auth/login/route.ts", "additions": 18, "deletions": 28 },
+          { "path": "api/auth/logout/route.ts", "additions": 12, "deletions": 14 },
+          { "path": "db/sessions.ts", "additions": 4, "deletions": 9 }
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-intent-architecture",
+      "source": "intent",
+      "target": "architecture",
+      "animated": true
+    },
+    {
+      "id": "e-architecture-alternatives",
+      "source": "architecture",
+      "target": "alternatives",
+      "animated": true
+    },
+    {
+      "id": "e-alternatives-change-getSession",
+      "source": "alternatives",
+      "target": "change-getSession",
+      "animated": true
+    },
+    {
+      "id": "e-change-getSession-change-loginHandler",
+      "source": "change-getSession",
+      "target": "change-loginHandler",
+      "animated": true,
+      "data": { "label": "feeds" }
+    },
+    {
+      "id": "e-change-getSession-risk-log",
+      "source": "change-getSession",
+      "target": "risk-log",
+      "data": { "relationship": "risk" }
+    },
+    {
+      "id": "e-change-loginHandler-risk-samesite",
+      "source": "change-loginHandler",
+      "target": "risk-samesite",
+      "data": { "relationship": "risk" }
+    },
+    {
+      "id": "e-change-getSession-diff",
+      "source": "change-getSession",
+      "target": "diff",
+      "animated": true
+    }
+  ],
+  "tour": [
+    {
+      "nodeId": "intent",
+      "title": "Why this refactor",
+      "caption": "Compliance flagged session tokens leaking into access logs. This PR centralizes auth so there's one place to audit and one place to redact."
+    },
+    {
+      "nodeId": "architecture",
+      "title": "What it touches",
+      "caption": "Five modules see edits — middleware, auth, session, db/sessions, logger. The api/* routes themselves stay untouched."
+    },
+    {
+      "nodeId": "alternatives",
+      "title": "The decision",
+      "caption": "Edge middleware won over per-route guards and a decorator pattern. Compliance wanted a single file to audit; the trade-off is that all routes need the same auth shape."
+    },
+    {
+      "nodeId": "change-getSession",
+      "title": "The simplification",
+      "caption": "getSession() loses the explicit header logging and delegates token validation to lib/auth — four steps down to three."
+    },
+    {
+      "nodeId": "change-loginHandler",
+      "title": "The hardening",
+      "caption": "Login now creates a session row, sets HttpOnly + Secure cookie attributes, and issues a CSRF token. One step longer but materially safer."
+    },
+    {
+      "nodeId": "risk-log",
+      "title": "The root-cause risk",
+      "caption": "The reason this PR exists — full request headers were being logged, leaking Authorization tokens to access logs."
+    },
+    {
+      "nodeId": "risk-samesite",
+      "title": "The leftover",
+      "caption": "Cookie Set-Cookie still doesn't declare SameSite. Lax is the browser default, but explicit Strict closes CSRF in iframe scenarios."
+    },
+    {
+      "nodeId": "diff",
+      "title": "Total footprint",
+      "caption": "Seven files, +156 / −98. The bulk is the new lib/auth.ts that the middleware delegates to."
+    }
+  ]
+}
