@@ -1,6 +1,6 @@
 import OpenAI from "openai";
-import { Octokit } from "@octokit/rest";
 import { NextResponse } from "next/server";
+import { fetchRawFile } from "@/lib/github-raw";
 
 export const runtime = "nodejs";
 
@@ -85,16 +85,14 @@ export async function POST(req: globalThis.Request) {
 
   let source = "";
   try {
-    const octokit = new Octokit(ghToken ? { auth: ghToken } : {});
-    const { data } = await octokit.rest.repos.getContent({
-      owner: body.owner,
-      repo: body.repo,
-      path: body.path,
-      ref: body.ref,
-    });
-    if (!Array.isArray(data) && "content" in data && data.encoding === "base64") {
-      source = Buffer.from(data.content, "base64").toString("utf8");
-    }
+    const fetched = await fetchRawFile(
+      body.owner,
+      body.repo,
+      body.ref ?? "HEAD",
+      body.path,
+      ghToken,
+    );
+    source = fetched ?? "";
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Failed to fetch file" },

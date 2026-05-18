@@ -1,5 +1,5 @@
-import { Octokit } from "@octokit/rest";
 import { NextResponse } from "next/server";
+import { fetchRawFile } from "@/lib/github-raw";
 
 export const runtime = "nodejs";
 
@@ -95,9 +95,8 @@ export async function POST(req: globalThis.Request) {
   }
 
   const headerToken = req.headers.get("x-github-token") ?? undefined;
-  const auth = headerToken || process.env.GITHUB_TOKEN;
-  const octokit = new Octokit(auth ? { auth } : {});
-  const ref = body.ref || undefined;
+  const auth = headerToken || process.env.GITHUB_TOKEN || null;
+  const ref = body.ref || "HEAD";
 
   const paths = body.paths.slice(0, 60);
 
@@ -123,22 +122,14 @@ export async function POST(req: globalThis.Request) {
               continue;
             }
             try {
-              const { data } = await octokit.rest.repos.getContent({
-                owner: body.owner,
-                repo: body.repo,
-                path,
+              const src = await fetchRawFile(
+                body.owner,
+                body.repo,
                 ref,
-              });
-              if (
-                !Array.isArray(data) &&
-                "content" in data &&
-                data.encoding === "base64"
-              ) {
-                const src = Buffer.from(data.content, "base64").toString("utf8");
-                emit(path, parseSignatures(src));
-              } else {
-                emit(path, []);
-              }
+                path,
+                auth,
+              );
+              emit(path, src ? parseSignatures(src) : []);
             } catch {
               emit(path, []);
             }

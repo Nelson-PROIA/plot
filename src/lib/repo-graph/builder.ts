@@ -13,6 +13,7 @@ import {
   parseTsconfigAliases,
   type AliasScope,
 } from "./imports";
+import { fetchRawFile } from "@/lib/github-raw";
 
 const PARSEABLE_KINDS = new Set(["ts", "tsx", "js", "jsx", "html", "css"]);
 const FETCH_CONCURRENCY = 6;
@@ -136,14 +137,14 @@ export async function buildRepoGraph(
   if (tsconfigBlobs.length > 0) {
     const tsResults = await Promise.allSettled(
       tsconfigBlobs.map(async (f) => {
-        if (!f.sha) return null;
-        const { data } = await octokit.rest.git.getBlob({
-          owner: ref.owner,
-          repo: ref.repo,
-          file_sha: f.sha,
-        });
-        const content =
-          data.encoding === "base64" ? base64ToUtf8(data.content) : data.content;
+        const content = await fetchRawFile(
+          ref.owner,
+          ref.repo,
+          branch,
+          f.path,
+          token,
+        );
+        if (content == null) return null;
         return { path: f.path, content };
       }),
     );
@@ -170,20 +171,19 @@ export async function buildRepoGraph(
     }
   };
 
-  // Batch the blob fetches so we don't fan out 80 simultaneous requests.
+  // Batch the raw fetches so we don't fan out 80 simultaneous requests.
   for (let i = 0; i < parseTargets.length; i += FETCH_CONCURRENCY) {
     const batch = parseTargets.slice(i, i + FETCH_CONCURRENCY);
     const results = await Promise.allSettled(
       batch.map(async (file) => {
-        if (!file.sha) return { file, content: "" };
-        const { data } = await octokit.rest.git.getBlob({
-          owner: ref.owner,
-          repo: ref.repo,
-          file_sha: file.sha,
-        });
-        const content =
-          data.encoding === "base64" ? base64ToUtf8(data.content) : data.content;
-        return { file, content };
+        const content = await fetchRawFile(
+          ref.owner,
+          ref.repo,
+          branch,
+          file.path,
+          token,
+        );
+        return { file, content: content ?? "" };
       }),
     );
     for (const r of results) {
