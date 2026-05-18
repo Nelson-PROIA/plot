@@ -443,7 +443,7 @@ export function RepoGraphView() {
   }, [mode, repo, token]);
 
   useEffect(() => {
-    if (mode !== "live" || !repo || !token) return;
+    if (mode !== "live" || !repo) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -511,7 +511,7 @@ export function RepoGraphView() {
 
   const fetchSignatures = useCallback(
     async (paths: string[]) => {
-      if (!repo || !token || paths.length === 0) return;
+      if (!repo || paths.length === 0) return;
       setSignatures((cur) => {
         const next = new Map(cur);
         for (const p of paths) if (!next.has(p)) next.set(p, "loading");
@@ -522,7 +522,7 @@ export function RepoGraphView() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-github-token": token,
+            ...(token ? { "x-github-token": token } : {}),
           },
           body: JSON.stringify({
             owner: repo.owner,
