@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { GitBranch, KeyRound, Loader2, ArrowRight } from "lucide-react";
+import { GitBranch, Loader2, ArrowRight } from "lucide-react";
 import { Octokit } from "@octokit/rest";
 import { useConfig } from "@/components/ConfigContext";
 import { parseRepoUrl } from "@/lib/repo-source/types";
@@ -13,7 +13,6 @@ export function Onboarding() {
   const router = useRouter();
   const { setRepo, setToken, setOnboarded } = useConfig();
   const [url, setUrl] = useState("https://github.com/Nelson-PROIA/float");
-  const [tokenInput, setTokenInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -25,24 +24,20 @@ export function Onboarding() {
       setError("Couldn't parse that — try `owner/repo` or a github.com URL.");
       return;
     }
-    const trimmed = tokenInput.trim();
     setBusy(true);
     try {
-      const octokit = new Octokit(trimmed ? { auth: trimmed } : {});
+      const octokit = new Octokit({});
       await octokit.rest.repos.get({
         owner: parsed.owner,
         repo: parsed.repo,
       });
       setRepo(parsed);
-      setToken(trimmed || null);
+      setToken(null);
       setOnboarded("live");
       router.replace("/");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      const hint = !trimmed
-        ? " — for private repos, add a personal-access token."
-        : "";
-      setError(`GitHub rejected the request: ${msg}${hint}`);
+      setError(`GitHub rejected the request: ${msg}`);
     } finally {
       setBusy(false);
     }
@@ -77,15 +72,8 @@ export function Onboarding() {
           Open a repository
         </h1>
         <p className="mb-8 text-sm leading-relaxed text-muted">
-          Paste a public GitHub URL. A personal-access token with{" "}
-          <span
-            className="font-mono"
-            style={{ fontFamily: "var(--font-mono), monospace" }}
-          >
-            repo
-          </span>{" "}
-          scope is <span className="text-foreground">optional</span> — without
-          it Plot uses GitHub&apos;s anonymous public API (60 req/h, no merge).
+          Paste a public GitHub URL. Plot reads the repo through GitHub&apos;s
+          public API — no token required.
         </p>
 
         <form onSubmit={submit} className="flex flex-col gap-3">
@@ -99,23 +87,6 @@ export function Onboarding() {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="github.com/owner/repo"
-                className="w-full rounded-md border border-border bg-subtle py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted focus:border-foreground/40 focus:outline-none"
-                spellCheck={false}
-                autoComplete="off"
-              />
-            </div>
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-muted">
-              GitHub token <span className="opacity-60">— optional</span>
-            </span>
-            <div className="relative">
-              <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
-              <input
-                value={tokenInput}
-                onChange={(e) => setTokenInput(e.target.value)}
-                placeholder="ghp_..."
-                type="password"
                 className="w-full rounded-md border border-border bg-subtle py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted focus:border-foreground/40 focus:outline-none"
                 spellCheck={false}
                 autoComplete="off"
@@ -143,7 +114,7 @@ export function Onboarding() {
 
         <div className="mt-6 flex items-center justify-between border-t border-border/60 pt-4">
           <span className="text-[11px] text-muted">
-            No token? See the demo canvas with mock data.
+            Or skip and see the demo canvas with mock data.
           </span>
           <button
             type="button"

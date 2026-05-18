@@ -8,12 +8,12 @@ export function getRepoSource(
   token?: string | null,
 ): RepoSource {
   if (mode === "live") {
-    if (!ref || !token) {
-      throw new Error(
-        "Live mode requires both a repo and a GitHub token. Falling back to mock mode.",
-      );
+    if (!ref) {
+      throw new Error("Live mode requires a repo. Falling back to mock mode.");
     }
-    return new GitHubRepoSource(ref, token);
+    // Token is optional — unauthenticated GitHub API works for public repos
+    // (with a lower rate limit and no approve/merge writes).
+    return new GitHubRepoSource(ref, token ?? null);
   }
   return new MockRepoSource();
 }
