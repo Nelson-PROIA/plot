@@ -1,4 +1,4 @@
-import { Octokit } from "@octokit/rest";
+import type { Octokit } from "@octokit/rest";
 import type {
   MergeResult,
   PRSummary,
@@ -9,6 +9,7 @@ import type {
 } from "./types";
 import type { PRCanvas } from "@/lib/types";
 import { buildCanvasFromPR } from "./canvas-builder";
+import { getOctokit } from "@/lib/octokit-client";
 
 /**
  * Pulls a PR + its file list in a single GraphQL round-trip (GitHub-as-graph),
@@ -23,7 +24,7 @@ export class GitHubRepoSource implements RepoSource {
     private ref: RepoRef,
     token?: string | null,
   ) {
-    this.octokit = new Octokit(token ? { auth: token } : {});
+    this.octokit = getOctokit(token);
   }
 
   async meta(): Promise<RepoMeta> {

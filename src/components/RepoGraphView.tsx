@@ -15,7 +15,7 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import { Octokit } from "@octokit/rest";
+import { getOctokit } from "@/lib/octokit-client";
 import { motion } from "framer-motion";
 import {
   ChevronLeft,
@@ -463,7 +463,7 @@ export function RepoGraphView() {
         setMeta(m);
         setPRs(list);
 
-        const octokit = new Octokit({ auth: token });
+        const octokit = getOctokit(token);
         const fileMap = new Map<number, Set<string>>();
         await Promise.all(
           list.map(async (pr) => {

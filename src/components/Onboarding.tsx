@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { GitBranch, Loader2, ArrowRight } from "lucide-react";
-import { Octokit } from "@octokit/rest";
 import { useConfig } from "@/components/ConfigContext";
+import { getOctokit } from "@/lib/octokit-client";
 import { parseRepoUrl } from "@/lib/repo-source/types";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -26,7 +26,7 @@ export function Onboarding() {
     }
     setBusy(true);
     try {
-      const octokit = new Octokit({});
+      const octokit = getOctokit();
       await octokit.rest.repos.get({
         owner: parsed.owner,
         repo: parsed.repo,

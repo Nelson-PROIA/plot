@@ -13,7 +13,7 @@ import { usePresentation } from "@/components/PresentationContext";
 import { getRepoSource } from "@/lib/repo-source/factory";
 import { enrichCanvasWithAI } from "@/lib/ai/enrich-canvas";
 import { loadCachedEnrichment, saveCachedEnrichment } from "@/lib/ai/cache";
-import { Octokit } from "@octokit/rest";
+import { getOctokit } from "@/lib/octokit-client";
 import type {
   PRSummary,
   RepoMeta,
@@ -69,7 +69,7 @@ export default function PRPage({ params }: PageProps) {
         //     Cached by PR head SHA so repeat opens are instant.
         if (mode === "live" && repo) {
           try {
-            const octokit = new Octokit(token ? { auth: token } : {});
+            const octokit = getOctokit(token);
             const pr = list.find((p) => p.number === Number(number));
             const headSha = pr?.headSha;
             if (headSha) {

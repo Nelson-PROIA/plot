@@ -1,5 +1,5 @@
-import { Octokit } from "@octokit/rest";
 import type { RepoRef } from "@/lib/repo-source/types";
+import { getOctokit } from "@/lib/octokit-client";
 import {
   extToKind,
   groupOf,
@@ -18,18 +18,6 @@ import { fetchRawFile } from "@/lib/github-raw";
 const PARSEABLE_KINDS = new Set(["ts", "tsx", "js", "jsx", "html", "css"]);
 const FETCH_CONCURRENCY = 6;
 const MAX_PARSE_FILES = 80; // cap content fetches per refresh
-
-function base64ToUtf8(b64: string): string {
-  if (typeof atob === "function") {
-    const clean = b64.replace(/\s/g, "");
-    const binary = atob(clean);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return new TextDecoder("utf-8").decode(bytes);
-  }
-  // Node fallback (won't run in the browser path)
-  return Buffer.from(b64, "base64").toString("utf-8");
-}
 
 const CACHE_KEY_PREFIX = "plot-repo-graph";
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -83,7 +71,7 @@ export async function buildRepoGraph(
   token: string,
   opts?: { ref?: string; maxFiles?: number },
 ): Promise<RepoGraph> {
-  const octokit = new Octokit({ auth: token });
+  const octokit = getOctokit(token);
 
   const { data: repoMeta } = await octokit.rest.repos.get({
     owner: ref.owner,
