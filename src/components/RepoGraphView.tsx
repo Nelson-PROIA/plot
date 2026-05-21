@@ -42,10 +42,12 @@ import {
 } from "@/components/repo-graph/SystemGroupNode";
 import {
   SymbolNode,
-  SymbolFileContainer,
   type SymbolNodeData,
-  type SymbolFileContainerData,
 } from "@/components/repo-graph/SymbolNode";
+import {
+  CodeNode,
+  type CodeNodeData,
+} from "@/components/repo-graph/CodeNode";
 import { PRDetailPanel } from "@/components/repo-graph/PRDetailPanel";
 import { getOctokit } from "@/lib/octokit-client";
 import { getRepoSource } from "@/lib/repo-source/factory";
@@ -60,20 +62,19 @@ import type { RepoGraph, RepoSymbol } from "@/lib/repo-graph/types";
 import {
   FILE_W,
   FILE_H,
-  FILE_GAP,
   SIG_ROW_H,
   SIG_PADDING_Y,
-  GROUP_PADDING,
-  GROUP_HEADER,
-  layoutFiles,
+  layoutFilesGraph,
   layoutSystem,
-  layoutSymbols,
+  layoutSymbolsGraph,
+  layoutCode,
   aggregateGroupEdges,
   visibleCallEdges,
-  SYSTEM_BUBBLE_W,
-  SYSTEM_BUBBLE_H,
+  extractSymbolBody,
   SYMBOL_W,
   SYMBOL_H,
+  CODE_W,
+  CODE_H,
 } from "@/lib/repo-graph/layouts";
 import { nextLevel, type Level } from "@/lib/repo-graph/levels";
 import { cn } from "@/lib/utils";
@@ -347,7 +348,7 @@ const nodeTypes = {
   groupBox: GroupBoxNode,
   systemGroup: SystemGroupNode,
   symbol: SymbolNode,
-  symbolFileBox: SymbolFileContainer,
+  code: CodeNode,
 };
 
 type ContextMenu = {
@@ -380,13 +381,17 @@ function RepoGraphViewInner() {
   const [tick, setTick] = useState(0);
   const [contextMenu, setContextMenu] = useState<ContextMenu>(null);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
-  const [focusedPR, setFocusedPR] = useState<number | null>(null);
+  const [focusedPRs, setFocusedPRs] = useState<Set<number>>(new Set());
   const [focusedGroup, setFocusedGroup] = useState<string | null>(null);
   const [auditOpen, setAuditOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [signatures, setSignatures] = useState<
     Map<string, Signature[] | "loading" | "error">
   >(new Map());
+  const [fileContents, setFileContents] = useState<Map<string, string>>(
+    new Map(),
+  );
+  const [sourcesLoading, setSourcesLoading] = useState(false);
   const [level, setLevel] = useState<Level>("file");
   const [prDetail, setPrDetail] = useState<number | null>(null);
   const [traceTarget, setTraceTarget] = useState<{
@@ -471,6 +476,40 @@ function RepoGraphViewInner() {
   }, [graph]);
 
   const openPR = useCallback((n: number) => setPrDetail(n), []);
+
+  // Toggle a PR's membership in the focus set. Plain click = single-select
+  // (replace whatever was selected). Shift/Meta-click = add to / remove from
+  // the existing selection so the user can compose multiple PRs into one view.
+  const togglePRFocus = useCallback(
+    (n: number, additive: boolean) => {
+      setFocusedPRs((cur) => {
+        const next = new Set(cur);
+        if (next.has(n)) {
+          next.delete(n);
+          if (!additive) next.clear();
+          return next;
+        }
+        if (!additive) next.clear();
+        next.add(n);
+        return next;
+      });
+      setFocusedGroup(null);
+    },
+    [],
+  );
+
+  // Union of all files touched by the selected PRs — every level uses this
+  // as the "is this node lit?" mask when at least one PR is selected.
+  const prFocusUnion = useMemo<Set<string> | null>(() => {
+    if (focusedPRs.size === 0) return null;
+    const out = new Set<string>();
+    for (const n of focusedPRs) {
+      const set = prFiles.get(n);
+      if (!set) continue;
+      for (const path of set) out.add(path);
+    }
+    return out;
+  }, [focusedPRs, prFiles]);
 
   // ───── Signature fetching (file level, for expand-row affordance) ─────
   const fetchSignatures = useCallback(
@@ -686,6 +725,9 @@ function RepoGraphViewInner() {
       } else if (e.key === "3") {
         e.preventDefault();
         setLevel("symbol");
+      } else if (e.key === "4") {
+        e.preventDefault();
+        setLevel("code");
       }
     };
     window.addEventListener("keydown", onKey);
@@ -742,72 +784,92 @@ function RepoGraphViewInner() {
       inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1);
     }
 
-    const nodes: Node[] = bubbles.map((b) => ({
-      id: b.id,
-      type: "systemGroup",
-      position: { x: b.x, y: b.y },
-      style: { width: b.w, height: b.h, zIndex: 0 },
-      data: {
-        label: b.group,
-        color: groupColorFor(b.group),
-        fileCount: groupFileCounts.get(b.group) ?? 0,
-        symbolCount: groupSymbolCounts.get(b.group) ?? 0,
-        touchedBy: groupPRs.get(b.group) ?? [],
-        outDeg: outDeg.get(b.group) ?? 0,
-        inDeg: inDeg.get(b.group) ?? 0,
-        dimmed: focusedGroup ? focusedGroup !== b.group : false,
-        focused: focusedGroup === b.group,
-        onOpenPR: openPR,
-        onDescribe: (g: string) => {
-          const files = graph.files
-            .filter((f) => f.group === g)
-            .map((f) => f.path)
-            .slice(0, 40);
-          assistant.open(
-            `Describe the \`${g}\` group in this repo: what is its responsibility, what kinds of files live inside, and how does it relate to the other groups? Files in the group:\n${files.join("\n")}`,
-          );
-        },
-        onToggleFocus: (g: string) => {
-          setFocusedGroup((cur) => (cur === g ? null : g));
-          setFocusedPR(null);
-        },
-        onZoomIn: (g: string) => {
-          setFocusedGroup(g);
-          setFocusedPR(null);
-          setLevel("file");
-        },
-      } satisfies SystemGroupNodeData,
-      draggable: false,
-    }));
+    // PR-focused groups: the set of group names touched by any selected PR.
+    const prFocusedGroups: Set<string> | null = prFocusUnion
+      ? new Set(
+          Array.from(prFocusUnion)
+            .map((path) => fileToGroup.get(path))
+            .filter((g): g is string => !!g),
+        )
+      : null;
+
+    const nodes: Node[] = bubbles.map((b) => {
+      const dimmedByPR = prFocusedGroups
+        ? !prFocusedGroups.has(b.group)
+        : false;
+      const dimmedByGroup = focusedGroup ? focusedGroup !== b.group : false;
+      return {
+        id: b.id,
+        type: "systemGroup",
+        position: { x: b.x, y: b.y },
+        style: { width: b.w, height: b.h, zIndex: 0 },
+        data: {
+          label: b.group,
+          color: groupColorFor(b.group),
+          fileCount: groupFileCounts.get(b.group) ?? 0,
+          symbolCount: groupSymbolCounts.get(b.group) ?? 0,
+          touchedBy: groupPRs.get(b.group) ?? [],
+          outDeg: outDeg.get(b.group) ?? 0,
+          inDeg: inDeg.get(b.group) ?? 0,
+          dimmed: dimmedByPR || dimmedByGroup,
+          focused: focusedGroup === b.group,
+          onOpenPR: openPR,
+          onDescribe: (g: string) => {
+            const files = graph.files
+              .filter((f) => f.group === g)
+              .map((f) => f.path)
+              .slice(0, 40);
+            assistant.open(
+              `Describe the \`${g}\` group in this repo: what is its responsibility, what kinds of files live inside, and how does it relate to the other groups? Files in the group:\n${files.join("\n")}`,
+            );
+          },
+          onToggleFocus: (g: string) => {
+            setFocusedGroup((cur) => (cur === g ? null : g));
+            setFocusedPRs(new Set());
+          },
+          onZoomIn: (g: string) => {
+            setFocusedGroup(g);
+            setFocusedPRs(new Set());
+            setLevel("file");
+          },
+        } satisfies SystemGroupNodeData,
+        draggable: false,
+      };
+    });
 
     const maxW = Math.max(1, ...aggregateEdges.map((e) => e.weight));
-    const edges: Edge[] = aggregateEdges.map((e) => ({
-      id: `sysedge:${e.source}->${e.target}`,
-      source: `sys:${e.source}`,
-      target: `sys:${e.target}`,
-      type: "smoothstep",
-      pathOptions: { borderRadius: 22 },
-      style: {
-        stroke: "var(--rf-edge)",
-        strokeWidth: 1 + 4 * (e.weight / maxW),
-        opacity:
-          focusedGroup &&
-          e.source !== focusedGroup &&
-          e.target !== focusedGroup
-            ? 0.08
-            : 0.55,
-      },
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        color: "var(--rf-edge)",
-        width: 12,
-        height: 12,
-      },
-      label: e.weight > 1 ? `${e.weight}` : undefined,
-      labelStyle: { fontSize: 10, fill: "var(--muted)" },
-      labelBgStyle: { fill: "var(--background)", opacity: 0.85 },
-      labelBgPadding: [2, 2] as [number, number],
-    }));
+    const edges: Edge[] = aggregateEdges.map((e) => {
+      const dimByGroup =
+        focusedGroup &&
+        e.source !== focusedGroup &&
+        e.target !== focusedGroup;
+      const dimByPR =
+        prFocusedGroups &&
+        !prFocusedGroups.has(e.source) &&
+        !prFocusedGroups.has(e.target);
+      return {
+        id: `sysedge:${e.source}->${e.target}`,
+        source: `sys:${e.source}`,
+        target: `sys:${e.target}`,
+        type: "smoothstep" as const,
+        pathOptions: { borderRadius: 22 },
+        style: {
+          stroke: "var(--rf-edge)",
+          strokeWidth: 1 + 4 * (e.weight / maxW),
+          opacity: dimByGroup || dimByPR ? 0.08 : 0.55,
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: "var(--rf-edge)",
+          width: 12,
+          height: 12,
+        },
+        label: e.weight > 1 ? `${e.weight}` : undefined,
+        labelStyle: { fontSize: 10, fill: "var(--muted)" },
+        labelBgStyle: { fill: "var(--background)", opacity: 0.85 },
+        labelBgPadding: [2, 2] as [number, number],
+      };
+    });
 
     return { nodes, edges };
   }, [
@@ -818,26 +880,28 @@ function RepoGraphViewInner() {
     prColorFor,
     groupColorFor,
     focusedGroup,
+    prFocusUnion,
     openPR,
     assistant,
   ]);
 
-  // ───── File level rendering (existing behavior, refactored) ─────
+  // ───── File level rendering (graph-y layout, dagre + hull containers) ─────
   const fileNodesEdges = useMemo<{ nodes: Node[]; edges: Edge[] }>(() => {
     if (!graph || level !== "file") return { nodes: [], edges: [] };
 
-    const { groupBoxes, filePositions } = layoutFiles(
+    // dagre lays files out by import topology; we then render translucent
+    // group containers as the bounding box of each group's files so the
+    // canvas reads as a graph but still shows where each group lives.
+    const { positions, groupHulls } = layoutFilesGraph(
       graph.files,
-      graph.groups,
+      graph.edges,
       (path) => fileHeight(path, expanded, signatures),
     );
 
     const visibleIds = new Set(graph.files.map((f) => f.path));
 
-    const prFocusSet =
-      focusedPR != null ? (prFiles.get(focusedPR) ?? new Set<string>()) : null;
-    const focusedSet: Set<string> | null = prFocusSet
-      ? prFocusSet
+    const focusedSet: Set<string> | null = prFocusUnion
+      ? prFocusUnion
       : focusedGroup != null
         ? new Set(
             graph.files
@@ -853,21 +917,21 @@ function RepoGraphViewInner() {
           )
         : true;
 
-    const groupNodes: Node[] = groupBoxes.map((box) => ({
-      id: box.id,
+    const groupNodes: Node[] = groupHulls.map((hull) => ({
+      id: `group:${hull.group}`,
       type: "groupBox",
-      position: { x: box.x, y: box.y },
+      position: { x: hull.x, y: hull.y },
       style: {
-        width: box.w,
-        height: box.h,
+        width: hull.w,
+        height: hull.h,
         zIndex: 0,
         pointerEvents: "none",
       },
       data: {
-        label: box.group,
-        color: groupColorFor(box.group),
-        count: graph.files.filter((f) => f.group === box.group).length,
-        dimmed: focusedSet ? !groupHasTouched(box.group) : false,
+        label: hull.group,
+        color: groupColorFor(hull.group),
+        count: graph.files.filter((f) => f.group === hull.group).length,
+        dimmed: focusedSet ? !groupHasTouched(hull.group) : false,
       } satisfies GroupNodeData,
       draggable: false,
       selectable: false,
@@ -887,19 +951,13 @@ function RepoGraphViewInner() {
         }
       }
       const dimmed = focusedSet ? !focusedSet.has(f.path) : false;
-      const pos = filePositions.get(f.path) ?? {
-        parentId: `group:${f.group}`,
-        x: GROUP_PADDING,
-        y: GROUP_HEADER + GROUP_PADDING,
-      };
+      const pos = positions.get(f.path) ?? { x: 0, y: 0, w: FILE_W, h: FILE_H };
       const isExpanded = expanded.has(f.path);
       const sigs = signatures.get(f.path);
       return {
         id: f.path,
         type: "file",
         position: { x: pos.x, y: pos.y },
-        parentId: pos.parentId,
-        extent: "parent",
         data: {
           fileName: f.path,
           fullPath: f.path,
@@ -954,7 +1012,7 @@ function RepoGraphViewInner() {
     prColorFor,
     groupColorFor,
     openPR,
-    focusedPR,
+    prFocusUnion,
     focusedGroup,
     expanded,
     signatures,
@@ -963,12 +1021,16 @@ function RepoGraphViewInner() {
   ]);
 
   // ───── Symbol level rendering ─────
+  // Dagre lays the symbols out along the call-graph topology so the canvas
+  // reads as an actual graph — group color shows where each symbol lives,
+  // edges show what calls what. No rigid file containers.
   const symbolNodesEdges = useMemo<{ nodes: Node[]; edges: Edge[] }>(() => {
     if (!graph || level !== "symbol") return { nodes: [], edges: [] };
     if (graph.symbols.length === 0) return { nodes: [], edges: [] };
 
-    const { fileBoxes, symbolPositions } = layoutSymbols(
+    const { positions } = layoutSymbolsGraph(
       graph.symbols,
+      graph.callEdges,
       graph.files,
     );
 
@@ -976,10 +1038,8 @@ function RepoGraphViewInner() {
       graph.files.map((f) => [f.path, f.group]),
     );
 
-    const prFocusSet =
-      focusedPR != null ? (prFiles.get(focusedPR) ?? new Set<string>()) : null;
-    const focusedFileSet: Set<string> | null = prFocusSet
-      ? prFocusSet
+    const focusedFileSet: Set<string> | null = prFocusUnion
+      ? prFocusUnion
       : focusedGroup != null
         ? new Set(
             graph.files
@@ -988,34 +1048,11 @@ function RepoGraphViewInner() {
           )
         : null;
 
-    const containerNodes: Node[] = fileBoxes.map((b) => {
-      const fileName = b.filePath.split("/").pop() ?? b.filePath;
-      const dimmed = focusedFileSet ? !focusedFileSet.has(b.filePath) : false;
-      return {
-        id: b.id,
-        type: "symbolFileBox",
-        position: { x: b.x, y: b.y },
-        style: {
-          width: b.w,
-          height: b.h,
-          zIndex: 0,
-          opacity: dimmed ? 0.32 : 1,
-          pointerEvents: "none",
-        },
-        data: {
-          filePath: b.filePath,
-          fileName,
-          groupColor: groupColorFor(b.group),
-        } satisfies SymbolFileContainerData,
-        draggable: false,
-        selectable: false,
-        focusable: false,
-      };
-    });
+    const containerNodes: Node[] = [];
 
     const symbolNodes: Node[] = [];
     for (const sym of graph.symbols) {
-      const pos = symbolPositions.get(sym.id);
+      const pos = positions.get(sym.id);
       if (!pos) continue;
       const group = fileToGroup.get(sym.file) ?? "root";
       const touchedBy: SymbolNodeData["touchedBy"] = [];
@@ -1033,8 +1070,6 @@ function RepoGraphViewInner() {
         id: sym.id,
         type: "symbol",
         position: { x: pos.x, y: pos.y },
-        parentId: pos.parentId,
-        extent: "parent",
         style: { width: SYMBOL_W, height: SYMBOL_H },
         data: {
           name: sym.name,
@@ -1088,16 +1123,204 @@ function RepoGraphViewInner() {
     prFiles,
     prColorFor,
     groupColorFor,
-    focusedPR,
+    prFocusUnion,
     focusedGroup,
     traceFromSymbol,
+  ]);
+
+  // ───── Code level: lazy-fetch raw source files on first entry ─────
+  useEffect(() => {
+    if (level !== "code" || !graph || !repo) return;
+    // Which files do we still need? We only care about files that host a
+    // showable (function-like) symbol — `layoutCode` filters to those.
+    const needed = new Set<string>();
+    for (const s of graph.symbols) {
+      if (
+        s.kind === "function" ||
+        s.kind === "component" ||
+        s.kind === "default" ||
+        s.kind === "class"
+      ) {
+        if (!fileContents.has(s.file)) needed.add(s.file);
+      }
+    }
+    if (needed.size === 0) return;
+    let cancelled = false;
+    setSourcesLoading(true);
+    (async () => {
+      try {
+        const res = await fetch("/api/repo/sources", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "x-github-token": token } : {}),
+          },
+          body: JSON.stringify({
+            owner: repo.owner,
+            repo: repo.repo,
+            ref: graph.defaultBranch,
+            paths: Array.from(needed),
+          }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as {
+          contents: Record<string, string>;
+        };
+        if (cancelled) return;
+        setFileContents((cur) => {
+          const next = new Map(cur);
+          for (const [path, src] of Object.entries(json.contents)) {
+            next.set(path, src);
+          }
+          return next;
+        });
+      } catch {
+        /* leave entries empty — cards will show "No source available." */
+      } finally {
+        if (!cancelled) setSourcesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [level, graph, repo, token, fileContents]);
+
+  // ───── Code level rendering ─────
+  const codeNodesEdges = useMemo<{ nodes: Node[]; edges: Edge[] }>(() => {
+    if (!graph || level !== "code") return { nodes: [], edges: [] };
+    if (graph.symbols.length === 0) return { nodes: [], edges: [] };
+
+    const { positions, symbolIds } = layoutCode(graph.symbols, graph.files);
+    const visible = new Set(symbolIds);
+
+    // Precompute, per file, the sorted list of symbol declaration lines so
+    // we can bound each symbol's body to its next-sibling line.
+    const linesByFile = new Map<string, number[]>();
+    for (const s of graph.symbols) {
+      if (!visible.has(s.id)) continue;
+      const arr = linesByFile.get(s.file) ?? [];
+      arr.push(s.line);
+      linesByFile.set(s.file, arr);
+    }
+    linesByFile.forEach((arr) => arr.sort((a, b) => a - b));
+
+    const fileToGroup = new Map<string, string>(
+      graph.files.map((f) => [f.path, f.group]),
+    );
+    const focusedFileSet: Set<string> | null = prFocusUnion
+      ? prFocusUnion
+      : focusedGroup != null
+        ? new Set(
+            graph.files
+              .filter((f) => f.group === focusedGroup)
+              .map((f) => f.path),
+          )
+        : null;
+
+    const nodes: Node[] = [];
+    for (const sym of graph.symbols) {
+      if (!visible.has(sym.id)) continue;
+      const pos = positions.get(sym.id);
+      if (!pos) continue;
+
+      const src = fileContents.get(sym.file);
+      const fileLines = linesByFile.get(sym.file) ?? [];
+      const idx = fileLines.indexOf(sym.line);
+      const nextSibling =
+        idx >= 0 && idx + 1 < fileLines.length ? fileLines[idx + 1] : null;
+      const bodyLines = src ? extractSymbolBody(src, sym.line, nextSibling) : [];
+
+      const touchedBy: CodeNodeData["touchedBy"] = [];
+      for (const pr of prs) {
+        const set = prFiles.get(pr.number);
+        if (set && set.has(sym.file)) {
+          touchedBy.push({
+            number: pr.number,
+            color: prColorFor(pr.number),
+          });
+        }
+      }
+      const dimmed = focusedFileSet ? !focusedFileSet.has(sym.file) : false;
+      const group = fileToGroup.get(sym.file) ?? "root";
+      nodes.push({
+        id: `code:${sym.id}`,
+        type: "code",
+        position: { x: pos.x, y: pos.y },
+        style: { width: CODE_W, height: CODE_H },
+        data: {
+          symbolId: sym.id,
+          symbolName: sym.name,
+          kind: sym.kind,
+          file: sym.file,
+          fileName: sym.file.split("/").pop() ?? sym.file,
+          groupColor: groupColorFor(group),
+          bodyLines,
+          loading: !src && sourcesLoading,
+          touchedBy,
+          dimmed,
+          onTrace: traceFromSymbol,
+        } satisfies CodeNodeData,
+        draggable: true,
+      });
+    }
+
+    const edgeList: Edge[] = [];
+    const visibleEdges = visibleCallEdges(graph.callEdges, visible, 400);
+    for (const e of visibleEdges) {
+      const sourceSym = graph.symbols.find((s) => s.id === e.source);
+      const targetSym = graph.symbols.find((s) => s.id === e.target);
+      const edgeDim = focusedFileSet
+        ? !(
+            (sourceSym && focusedFileSet.has(sourceSym.file)) ||
+            (targetSym && focusedFileSet.has(targetSym.file))
+          )
+        : false;
+      edgeList.push({
+        id: `codeedge:${e.id}`,
+        source: `code:${e.source}`,
+        target: `code:${e.target}`,
+        type: "smoothstep" as const,
+        style: {
+          stroke: "var(--rf-edge)",
+          strokeWidth: 1,
+          opacity: edgeDim ? 0.05 : 0.35,
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: "var(--rf-edge)",
+          width: 8,
+          height: 8,
+        },
+      });
+    }
+
+    return { nodes, edges: edgeList };
+  }, [
+    graph,
+    level,
+    prs,
+    prFiles,
+    prColorFor,
+    groupColorFor,
+    prFocusUnion,
+    focusedGroup,
+    traceFromSymbol,
+    fileContents,
+    sourcesLoading,
   ]);
 
   const { nodes, edges } = useMemo(() => {
     if (level === "system") return systemNodesEdges;
     if (level === "symbol") return symbolNodesEdges;
+    if (level === "code") return codeNodesEdges;
     return fileNodesEdges;
-  }, [level, systemNodesEdges, fileNodesEdges, symbolNodesEdges]);
+  }, [
+    level,
+    systemNodesEdges,
+    fileNodesEdges,
+    symbolNodesEdges,
+    codeNodesEdges,
+  ]);
 
   // ───── Assistant context ─────
   useAssistantContext(
@@ -1189,7 +1412,7 @@ function RepoGraphViewInner() {
 
   const toggleGroupFocus = useCallback((g: string) => {
     setFocusedGroup((cur) => (cur === g ? null : g));
-    setFocusedPR(null);
+    setFocusedPRs(new Set());
   }, []);
 
   if (mode !== "live") {
@@ -1370,11 +1593,9 @@ function RepoGraphViewInner() {
                   prs={prs}
                   prColorFor={prColorFor}
                   onOpenPR={openPR}
-                  focusedPR={focusedPR}
-                  onToggleFocus={(n) => {
-                    setFocusedPR((cur) => (cur === n ? null : n));
-                    setFocusedGroup(null);
-                  }}
+                  focusedPRs={focusedPRs}
+                  onToggleFocus={togglePRFocus}
+                  onClearPRFocus={() => setFocusedPRs(new Set())}
                   focusedGroup={focusedGroup}
                   onToggleGroupFocus={toggleGroupFocus}
                   onSelectPR={selectPR}
@@ -1487,8 +1708,9 @@ function Legend({
   prs,
   prColorFor,
   onOpenPR,
-  focusedPR,
+  focusedPRs,
   onToggleFocus,
+  onClearPRFocus,
   focusedGroup,
   onToggleGroupFocus,
   onSelectPR,
@@ -1500,8 +1722,9 @@ function Legend({
   prs: PRSummary[];
   prColorFor: (n: number) => string;
   onOpenPR: (n: number) => void;
-  focusedPR: number | null;
-  onToggleFocus: (n: number) => void;
+  focusedPRs: Set<number>;
+  onToggleFocus: (n: number, additive: boolean) => void;
+  onClearPRFocus: () => void;
   focusedGroup: string | null;
   onToggleGroupFocus: (g: string) => void;
   onSelectPR: (n: number) => void;
@@ -1517,12 +1740,25 @@ function Legend({
     >
       {prs.length > 0 ? (
         <div className="flex flex-col gap-1">
-          <span className="px-1 text-[9px] font-medium uppercase tracking-wider text-muted">
-            Open PRs · {prs.length}
-          </span>
+          <div className="flex items-center justify-between gap-2 px-1">
+            <span className="text-[9px] font-medium uppercase tracking-wider text-muted">
+              Open PRs · {prs.length}
+              {focusedPRs.size > 0 ? ` · ${focusedPRs.size} focused` : ""}
+            </span>
+            {focusedPRs.size > 0 ? (
+              <button
+                type="button"
+                onClick={onClearPRFocus}
+                className="rounded-sm px-1 text-[9px] text-muted transition-colors hover:bg-subtle hover:text-foreground"
+                title="Clear PR focus"
+              >
+                clear
+              </button>
+            ) : null}
+          </div>
           {prs.map((pr) => {
             const c = prColorFor(pr.number);
-            const isFocused = focusedPR === pr.number;
+            const isFocused = focusedPRs.has(pr.number);
             return (
               <div
                 key={pr.number}
@@ -1538,8 +1774,14 @@ function Legend({
               >
                 <button
                   type="button"
-                  onClick={() => onToggleFocus(pr.number)}
-                  title={isFocused ? "Unfocus" : "Focus only this PR"}
+                  onClick={(e) =>
+                    onToggleFocus(pr.number, e.shiftKey || e.metaKey)
+                  }
+                  title={
+                    isFocused
+                      ? "Unfocus (shift-click to keep others)"
+                      : "Focus this PR (shift-click to add to current focus)"
+                  }
                   className="flex flex-1 items-center gap-2 px-1.5 py-0.5 text-left text-[11px]"
                 >
                   <span

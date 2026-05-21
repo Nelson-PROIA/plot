@@ -1,6 +1,7 @@
 "use client";
 
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
+import { Play } from "lucide-react";
 import type { SymbolKind } from "@/lib/repo-graph/types";
 
 export type SymbolNodeData = {
@@ -81,6 +82,19 @@ export function SymbolNode({ id, data }: NodeProps<Node<SymbolNodeData, "symbol"
           #{data.touchedBy[0].number}
         </span>
       ) : null}
+      <button
+        type="button"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          data.onTrace(id);
+        }}
+        className="nodrag pointer-events-auto flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted opacity-0 transition-opacity hover:bg-foreground/10 hover:text-foreground group-hover:opacity-100"
+        title="Trace data flow through this function"
+        aria-label="Trace data flow"
+      >
+        <Play className="h-2.5 w-2.5" strokeWidth={2} />
+      </button>
     </div>
   );
 }

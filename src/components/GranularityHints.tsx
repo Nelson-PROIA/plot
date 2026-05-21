@@ -1,6 +1,6 @@
 "use client";
 
-import { Layers3, Network, Code2 } from "lucide-react";
+import { Layers3, Network, Code2, FileCode2 } from "lucide-react";
 import type { Level } from "@/lib/repo-graph/levels";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +19,7 @@ export function GranularityPill({
     { k: "system", label: "System", Icon: Layers3 },
     { k: "file", label: "Files", Icon: Network },
     { k: "symbol", label: "Symbols", Icon: Code2 },
+    { k: "code", label: "Code", Icon: FileCode2 },
   ];
   return (
     <div className="flex items-center gap-1 rounded-full border border-border/60 bg-background/80 p-0.5 shadow-[0_4px_24px_rgba(0,0,0,0.18)] backdrop-blur">
@@ -46,10 +47,12 @@ export function GranularityPill({
 export function GranularityHint({ level }: { level: Level }) {
   const text: Record<Level, string> = {
     system:
-      "Scroll down to go deeper — files, then symbols. Hold ⌘ + scroll to spatial-zoom.",
-    file: "Scroll down for symbols, scroll up for the system view. Hold ⌘ + scroll to spatial-zoom.",
+      "Scroll down for files. ⌘+scroll = spatial zoom. Double-click a bubble to dive in.",
+    file: "Scroll down for symbols, up for the system view. ⌘+scroll = spatial zoom.",
     symbol:
-      "Scroll up to step back out. Right-click any symbol to trace its data flow.",
+      "Scroll down for source code, up for files. Click ▶ on any symbol to trace it.",
+    code:
+      "Scroll up to step back. Click ▶ on a card to trace data flow through it.",
   };
   return (
     <span className="rounded-full bg-subtle/60 px-2 py-0.5 text-[10px] text-muted/90">
