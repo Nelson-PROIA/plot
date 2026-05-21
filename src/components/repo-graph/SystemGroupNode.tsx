@@ -16,6 +16,8 @@ export type SystemGroupNodeData = {
   onOpenPR: (n: number) => void;
   onDescribe: (g: string) => void;
   onToggleFocus: (g: string) => void;
+  /** Drill down: set granularity to file level + focus this group. */
+  onZoomIn: (g: string) => void;
 };
 
 export function SystemGroupNode({
@@ -25,6 +27,11 @@ export function SystemGroupNode({
   return (
     <div
       className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl border transition-all"
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        data.onZoomIn(data.label);
+      }}
+      title="Double-click to dive into this group"
       style={{
         borderColor: data.focused
           ? accent
@@ -34,6 +41,7 @@ export function SystemGroupNode({
           ? `0 0 0 2px ${accent}, 0 8px 28px rgba(0,0,0,0.18)`
           : "0 4px 18px rgba(0,0,0,0.12)",
         opacity: data.dimmed ? 0.35 : 1,
+        cursor: "pointer",
       }}
     >
       <Handle type="target" position={Position.Left} style={handleStyle} />

@@ -771,6 +771,11 @@ function RepoGraphViewInner() {
           setFocusedGroup((cur) => (cur === g ? null : g));
           setFocusedPR(null);
         },
+        onZoomIn: (g: string) => {
+          setFocusedGroup(g);
+          setFocusedPR(null);
+          setLevel("file");
+        },
       } satisfies SystemGroupNodeData,
       draggable: false,
     }));
