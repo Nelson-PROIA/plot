@@ -194,7 +194,7 @@ function resolveRelative(
 }
 
 /** Try relative first, then path-alias resolution for bare specifiers. */
-function resolveSpec(
+export function resolveSpec(
   fromFile: string,
   spec: string,
   files: Map<string, RepoFile>,

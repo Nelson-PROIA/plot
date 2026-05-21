@@ -1,7 +1,8 @@
 import type { RepoRef } from "@/lib/repo-source/types";
 import type { RepoGraph } from "./types";
 
-const CACHE_KEY_PREFIX = "plot-repo-graph";
+// Bump when the graph schema changes — old caches are silently dropped.
+const CACHE_KEY_PREFIX = "plot-repo-graph:v2";
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 function cacheKey(ref: RepoRef) {
@@ -21,6 +22,8 @@ export function loadCachedGraph(ref: RepoRef): RepoGraph | null {
       files: parsed.files,
       groups: parsed.groups,
       edges: parsed.edges ?? [],
+      symbols: parsed.symbols ?? [],
+      callEdges: parsed.callEdges ?? [],
     };
   } catch {
     return null;

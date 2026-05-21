@@ -6,23 +6,30 @@ import {
   type RepoFile,
   type RepoGraph,
   type RepoGraphEdge,
+  type RepoSymbol,
+  type SymbolCallEdge,
 } from "@/lib/repo-graph/types";
 import {
   extractEdgesFromFile,
   parseTsconfigAliases,
+  resolveSpec,
   type AliasScope,
 } from "@/lib/repo-graph/imports";
+import {
+  extractSymbols,
+  extractCallEdges,
+  parseImportBindings,
+} from "@/lib/repo-graph/symbols";
 import { fetchRawFile } from "@/lib/github-raw";
 
 export const runtime = "nodejs";
 // Cache the graph at the edge for an hour so repeat ingests are instant.
-// `revalidate` is a Next.js Route Handler hint; we also set Cache-Control
-// headers below for CDN-level caching across all visitors.
 export const revalidate = 3600;
 
 const GITHUB_BASE = "https://api.github.com";
 const PARSEABLE_KINDS = new Set(["ts", "tsx", "js", "jsx", "html", "css"]);
-const FETCH_CONCURRENCY = 12; // server-side: lower latency to GitHub
+const SYMBOL_PARSEABLE = new Set(["ts", "tsx", "js", "jsx"]);
+const FETCH_CONCURRENCY = 12;
 const MAX_PARSE_FILES = 80;
 const MAX_FILES = 250;
 
@@ -68,18 +75,15 @@ export async function GET(req: Request) {
 
   let graph: RepoGraph;
   try {
-    // 1) repo meta — name + default_branch
     const meta = await ghJson<{ name: string; default_branch: string }>(
       `/repos/${owner}/${repo}`,
     );
     const branch = refOverride || meta.default_branch;
 
-    // 2) recursive tree against the branch name directly (skips getRef)
     const tree = await ghJson<{ tree: TreeNode[] }>(
       `/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
     );
 
-    // 3) bucket files
     const files: RepoFile[] = [];
     const groupsInOrder: string[] = [];
     const seenGroups = new Set<string>();
@@ -103,7 +107,7 @@ export async function GET(req: Request) {
       if (files.length >= MAX_FILES) break;
     }
 
-    // 4) tsconfig fetch — concurrent
+    // tsconfig fetch
     const aliases: AliasScope[] = [];
     const tsconfigs = files.filter(
       (f) => f.path.endsWith("/tsconfig.json") || f.path === "tsconfig.json",
@@ -123,15 +127,14 @@ export async function GET(req: Request) {
       }
     }
 
-    // 5) parseable file content — batched concurrent
     const filesById = new Map<string, RepoFile>(files.map((f) => [f.path, f]));
     const parseTargets = files
       .filter((f) => PARSEABLE_KINDS.has(f.kind))
       .slice(0, MAX_PARSE_FILES);
 
-    const edges: RepoGraphEdge[] = [];
-    const seenEdgeId = new Set<string>();
-
+    // Fetch all parseable file contents once — we'll use them for both
+    // import-edge extraction and symbol/call-edge extraction.
+    const contents = new Map<string, string>();
     for (let i = 0; i < parseTargets.length; i += FETCH_CONCURRENCY) {
       const batch = parseTargets.slice(i, i + FETCH_CONCURRENCY);
       const results = await Promise.allSettled(
@@ -142,17 +145,74 @@ export async function GET(req: Request) {
       );
       for (const r of results) {
         if (r.status !== "fulfilled") continue;
-        const fileEdges = extractEdgesFromFile(
-          r.value.file,
-          r.value.content,
-          filesById,
-          aliases,
-        );
-        for (const e of fileEdges) {
-          if (seenEdgeId.has(e.id)) continue;
-          seenEdgeId.add(e.id);
-          edges.push(e);
-        }
+        contents.set(r.value.file.path, r.value.content);
+      }
+    }
+
+    // File → file import edges (existing behavior).
+    const edges: RepoGraphEdge[] = [];
+    const seenEdgeId = new Set<string>();
+    for (const file of parseTargets) {
+      const content = contents.get(file.path) ?? "";
+      const fileEdges = extractEdgesFromFile(file, content, filesById, aliases);
+      for (const e of fileEdges) {
+        if (seenEdgeId.has(e.id)) continue;
+        seenEdgeId.add(e.id);
+        edges.push(e);
+      }
+    }
+
+    // Symbols across all symbol-parseable files.
+    const symbols: RepoSymbol[] = [];
+    const symbolsByFile = new Map<string, RepoSymbol[]>();
+    for (const file of parseTargets) {
+      if (!SYMBOL_PARSEABLE.has(file.kind)) continue;
+      const content = contents.get(file.path);
+      if (!content) continue;
+      const fileSymbols = extractSymbols(file, content);
+      if (fileSymbols.length === 0) continue;
+      symbolsByFile.set(file.path, fileSymbols);
+      symbols.push(...fileSymbols);
+    }
+
+    // Build a quick lookup: (filePath, exportedName) → RepoSymbol
+    const symbolByFileName = new Map<string, RepoSymbol>();
+    for (const s of symbols) {
+      symbolByFileName.set(`${s.file}::${s.name}`, s);
+    }
+
+    // Symbol → symbol call edges, per file.
+    const callEdges: SymbolCallEdge[] = [];
+    const seenCallId = new Set<string>();
+    for (const file of parseTargets) {
+      if (!SYMBOL_PARSEABLE.has(file.kind)) continue;
+      const content = contents.get(file.path);
+      if (!content) continue;
+      const fileSymbols = symbolsByFile.get(file.path);
+      if (!fileSymbols || fileSymbols.length === 0) continue;
+
+      // Resolve each named import to a concrete RepoSymbol.
+      const bindings = parseImportBindings(content);
+      const resolvedImports: Array<{ localName: string; target: RepoSymbol }> =
+        [];
+      for (const b of bindings) {
+        const targetFile = resolveSpec(file.path, b.specifier, filesById, aliases);
+        if (!targetFile) continue;
+        const target = symbolByFileName.get(`${targetFile}::${b.importedName}`);
+        if (!target) continue;
+        resolvedImports.push({ localName: b.localName, target });
+      }
+
+      const fileCallEdges = extractCallEdges(
+        file,
+        content,
+        fileSymbols,
+        resolvedImports,
+      );
+      for (const e of fileCallEdges) {
+        if (seenCallId.has(e.id)) continue;
+        seenCallId.add(e.id);
+        callEdges.push(e);
       }
     }
 
@@ -163,6 +223,8 @@ export async function GET(req: Request) {
       files,
       groups: groupsInOrder,
       edges,
+      symbols,
+      callEdges,
     };
   } catch (e) {
     return NextResponse.json(
@@ -173,7 +235,6 @@ export async function GET(req: Request) {
 
   return NextResponse.json(graph, {
     headers: {
-      // CDN-cache so anyone hitting the same repo gets the cached graph.
       "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
     },
   });

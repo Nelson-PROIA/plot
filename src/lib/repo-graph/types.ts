@@ -25,20 +25,58 @@ export type RepoGraphEdge = {
   id: string;
   source: string;
   target: string;
-  /** "import" / "require" / "html-script" / "html-link" — for future styling */
   kind: "import" | "require" | "html-script" | "html-link" | "css-import";
+};
+
+export type SymbolKind =
+  | "function"
+  | "component"
+  | "class"
+  | "interface"
+  | "type"
+  | "enum"
+  | "const"
+  | "default";
+
+/**
+ * A top-level export from a file — function, React component, class, type, etc.
+ * Stable ID is `<file path>::<name>` (one file can only have one export with a
+ * given name, with the exception of `default` which we surface as "default").
+ */
+export type RepoSymbol = {
+  id: string;
+  file: string;
+  name: string;
+  kind: SymbolKind;
+  /** 1-indexed source line of the declaration. Used to slice symbol scopes. */
+  line: number;
+  /** Parameter list as it appears in source, when applicable. */
+  params?: string;
+  exported: boolean;
+};
+
+/**
+ * Symbol-to-symbol call edge inferred from import + usage analysis.
+ * `source` and `target` are both `RepoSymbol.id`s.
+ */
+export type SymbolCallEdge = {
+  id: string;
+  source: string;
+  target: string;
 };
 
 export type RepoGraph = {
   rootName: string;
   defaultBranch: string;
   fetchedAt: number;
-  /** Filtered list of code-ish files we want to surface in the graph. */
   files: RepoFile[];
-  /** All distinct top-level groups in the order they appear. */
   groups: string[];
   /** File → file dependency edges parsed from imports. */
   edges: RepoGraphEdge[];
+  /** Exported symbols across all parseable files. */
+  symbols: RepoSymbol[];
+  /** Inferred symbol → symbol call edges. */
+  callEdges: SymbolCallEdge[];
 };
 
 export function extToKind(path: string): FileKind {
