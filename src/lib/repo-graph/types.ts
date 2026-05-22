@@ -129,8 +129,24 @@ export function shouldInclude(path: string): boolean {
   return INCLUDE_KINDS.has(extToKind(path));
 }
 
+/**
+ * Logical group a file belongs to.
+ *
+ * For repos where most code lives under a single root (e.g. `src/`), the
+ * naive "first directory" rule produces a single bucket that swallows
+ * everything — no cross-group structure to visualize at the system level.
+ * For monorepos with a top-level `packages/`, ditto. So we treat those two
+ * specifically: dive into their immediate children and surface those as
+ * the group. The rest stays at the top level.
+ */
+const DESCEND_INTO = new Set(["src", "packages", "apps", "lib"]);
+
 export function groupOf(path: string): string {
   const parts = path.split("/");
   if (parts.length === 1) return "root";
-  return parts[0];
+  const top = parts[0];
+  if (DESCEND_INTO.has(top) && parts.length >= 3) {
+    return `${top}/${parts[1]}`;
+  }
+  return top;
 }

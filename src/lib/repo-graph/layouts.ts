@@ -439,16 +439,10 @@ export function layoutCode(
   positions: Map<string, CodePos>;
   symbolIds: string[];
 } {
-  // Only show symbols that have a meaningful body — functions, components,
-  // classes. Const values + types are too small / structureless to be useful
-  // at this granularity.
-  const showable = symbols.filter(
-    (s) =>
-      s.kind === "function" ||
-      s.kind === "component" ||
-      s.kind === "default" ||
-      s.kind === "class",
-  );
+  // Show every symbol — even const exports and types have a body excerpt
+  // worth glancing at. On small repos this is the difference between a
+  // single auth-middleware card and an actual graph.
+  const showable = symbols;
 
   const fileOrder = new Map<string, number>(
     files.map((f, i) => [f.path, i]),
