@@ -34,6 +34,33 @@ order"* to *"understand the change graph, then inspect the risky nodes."*
 The deeper product, beyond PR review: a **cognitive compression layer for
 software systems**.
 
+### The real core (founder conviction, 2026-06-06)
+
+> PR review is the **entry sentence**, not the product. The product is
+> **AI-to-human explainability of the systems being built** — keeping humans
+> able to understand, manage, and stay confident in software regardless of who
+> or what wrote it.
+
+Stated as conviction: agents may well end up merging agents' code — and even
+then (*especially* then) humans managing the thing still need to understand the
+system and have confidence in it. So:
+
+- **Today's wedge:** PR review — because right now the human is still in that
+  loop, and it's the recurring, must-do moment where comprehension is bought.
+- **If the human review loop shrinks:** the entry point moves (system briefings,
+  change digests, incident explainers, audit trails, architecture drift
+  reports) but the **core stays identical** — explain the machine-built system
+  to the humans accountable for it.
+- **What never automates away:** accountability. Someone must be able to answer
+  "what is this system doing, what changed, and why should I trust it" — to a
+  regulator, a customer, an incident channel, a new hire, a board. Daphne is
+  the layer that lets them answer.
+
+This reframing is why the "agents-merge-agents kills review tools" risk (§6.2,
+challenge 4) is survivable: it kills *review-gate* products, not explainability
+products. It also makes the trust contract (evidence-graded claims) the heart of
+the product rather than a feature — confidence *is* the deliverable.
+
 ### The five missing contexts (why diffs fail)
 
 The diff shows the patch; the reviewer has to reconstruct the system. What's
@@ -263,7 +290,10 @@ business.** (Directly validates demoting our canvas to a lens.)
 3. Benchmarks score comment act-on-rate, not comprehension — Daphne either posts
    a competitive number or defines the comprehension benchmark itself.
 4. The market is betting on agents reading code so humans don't; Daphne bets the
-   human merge-accountability moment survives. A bet, not a fact.
+   human merge-accountability moment survives. *Answered by the core reframing
+   (§1, "The real core"): even if the merge moment automates, accountability and
+   system-understanding don't — the entry surface moves, the product doesn't.
+   Risk remains for the **wedge timing**, not for the core.*
 
 **White space still genuinely open (post-sweep):**
 1. **Evidence-strength / trust-tier contract** — *nothing productized* grades
