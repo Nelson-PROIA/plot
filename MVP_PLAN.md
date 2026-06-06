@@ -1,0 +1,335 @@
+# Daphne MVP — Plan of Action
+
+> The execution doc. Open it at the start of every coding session, pick the next
+> unchecked tasks, check them off when the milestone's demo passes. Product
+> vision lives in Notion ("Nelson | Product Vision", authoritative); this file
+> only says how we build it. Updated as we go.
+
+Status: **M0 not started** · Prototype branch `unified-graph` deployed at plot-orpin.vercel.app
+
+---
+
+## 1. What we are building (MVP definition)
+
+One sentence: **onboard a single GitHub repo, get a living knowledge base, open
+a PR, and review it as change atoms placed on the system graph, with every
+explanation cited from the actual code.**
+
+The MVP is done when the demo script in §8 runs end to end on the deployed app,
+on a real repository, without faking anything.
+
+Core loop the MVP must nail:
+
+1. Connect repo → Daphne indexes it (real parsing, persisted KB)
+2. Open a PR → Daphne decomposes it into **change atoms** (the smallest changes
+   with independent meaning), ordered for reading
+3. The review opens on the **system graph** (founder decision: graph is the
+   default), atoms pinned on the map, reading path drawn through them, zoomed
+   on atom 1. Classic linear view is one key away, same state.
+4. Per atom, the **Context Inspector** shows: what changed, constraints, review
+   cues, watch-outs, scope, evidence. The raw diff is right there (Workbench).
+5. The **Repository Brain** answers questions with clickable citations and
+   labeled claims (observed / author-stated / inferred).
+6. Reviewer approves **atom by atom**; all atoms reviewed → approve the PR on
+   GitHub. On a PR update, only what changed since last visit needs re-review.
+
+## 2. Scope: in / out
+
+**IN (MVP):** single repo · GitHub only · TS/JS parsing first · one user (the
+existing token model, no accounts) · atoms + lane + inspector + workbench +
+graph-default + classic toggle · cited brain with claim labels · per-atom
+review state + delta-since-last-visit · manual reindex + reindex-on-PR-open.
+
+**OUT (explicitly, do not build):** multi-repo · GitLab/Bitbucket · adaptive
+reviewer modes · Agent Command Center / autonomous agents · evidence-strength
+grading (labels only, no scoring) · Graphiti / temporal knowledge graph
+(per-SHA snapshots are enough) · Qdrant (pgvector at most) · SCIP
+(tree-sitter only) · comment threads / team features · webhooks live sync
+(manual refresh is fine) · mobile · local/VPC packaging.
+
+When tempted to add something, reread this list.
+
+## 3. Architecture target
+
+```
+GitHub (existing /api/gh proxy + tarball download)
+   │
+   ▼
+INDEXER  (web-tree-sitter WASM: ts/tsx/js/jsx)         ← M1
+   files, symbols, import edges, call edges, per-SHA snapshots
+   │
+   ▼
+KB STORE (Postgres: Neon via Vercel marketplace, drizzle ORM)
+   │                │                  │
+   ▼                ▼                  ▼
+BRAIN (M2)      ATOMIZER (M3)      GRAPH API (M1)
+chat w/ tools   LLM over diff+KB   feeds the canvas
+cited answers   → atoms persisted  (existing UI kept alive)
+   │                │
+   └────────┬───────┘
+            ▼
+REVIEW SURFACE (M4)
+Header · Semantic Lane · Graph-default canvas with atom pins + reading path
+· Context Inspector · Workbench · classic linear toggle · per-atom approve
+```
+
+### Tech decisions (MVP-pragmatic; the Notion tech doc is the later target)
+
+| Decision | MVP choice | Later (not now) |
+|---|---|---|
+| Parsing | web-tree-sitter (WASM grammars, runs in Node route handlers) | SCIP cross-refs, more languages |
+| Store | Postgres (Neon) + drizzle migrations | Qdrant, Graphiti |
+| Retrieval | pg full-text + trigram on symbols/files; pgvector only if needed | hybrid dense retrieval, reranker |
+| LLM | OpenAI (already wired: key, streaming, JSON mode); gpt-4o-mini default, bigger model for atomizer if quality demands | provider abstraction, Claude |
+| Repo fetch | GitHub tarball endpoint through the existing proxy (no git binary) | git clone, incremental fetch |
+| Jobs | route handlers + chunked processing (Fluid, 300s) with progress polling | real queue |
+| Telemetry | simple events table (view switches, citation clicks) | product analytics |
+
+### Database schema sketch (drizzle, v1)
+
+```
+repos        (id, owner, name, default_branch, created_at)
+snapshots    (id, repo_id, commit_sha, indexed_at, file_count, status)
+files        (id, snapshot_id, path, lang, size, hash)
+symbols      (id, snapshot_id, file_id, name, kind, start_line, end_line,
+              signature, exported)            -- stable_key = path::name
+edges        (id, snapshot_id, src_symbol_id|src_file_id, dst_..., kind)
+              -- kind: import | call | contains
+prs          (id, repo_id, number, title, body, author, head_sha, base_sha,
+              state, fetched_at)
+atoms        (id, pr_id, head_sha, idx_order, title, category, risk,
+              summary, constraints jsonb, cues jsonb, watch_outs jsonb,
+              files jsonb, hunks jsonb, symbol_keys jsonb, evidence jsonb)
+atom_reviews (atom_id, reviewed_at, reviewed_at_sha)
+chats        (id, repo_id, pr_id?, created_at)  + messages (role, content,
+              claims jsonb)   -- claims: [{text, label, citations[]}]
+events       (id, kind, payload jsonb, created_at)
+```
+
+### API route map (target)
+
+```
+POST /api/kb/index            start/refresh indexing  (repo, ref) → job id
+GET  /api/kb/status           indexing progress
+GET  /api/kb/graph            graph payload (compat with current canvas shape)
+GET  /api/kb/symbol/[key]     symbol detail + callers/callees + source slice
+POST /api/brain/chat          streaming chat; returns claim blocks w/ citations
+POST /api/pr/[n]/ingest       fetch PR, diff, persist
+POST /api/pr/[n]/atomize      run atomizer → atoms
+GET  /api/pr/[n]/atoms        atoms + review state
+POST /api/atoms/[id]/review   mark reviewed (at head sha)
+POST /api/events              telemetry
+(existing /api/gh/* proxy unchanged)
+```
+
+## 4. What happens to the current code
+
+| Current asset | Action |
+|---|---|
+| `lib/repo-graph/*` (regex extraction, imports resolver) | **Replace internals** with tree-sitter indexer; keep the alias resolver logic (port it); keep graph payload shape during M1 so the canvas keeps working |
+| `/api/repo/graph`, `/api/repo/signatures`, `/api/repo/sources` | Superseded by `/api/kb/*` in M1; delete after the canvas is switched over |
+| `RepoGraphView` (4-level canvas, granularity ladder, multi-PR overlay) | **Keep**, becomes the base of the M4 review canvas + the repo-exploration view; gets atom pins + reading path |
+| `FunctionTracePanel` (animated data flow) | Keep as-is for now; M6 grounds it in KB edges |
+| `Assistant` | **Gut and rebuild** in M2 as the cited Brain (same FAB/UX shell) |
+| `PRDetailPanel`, per-PR canvas (`/pr/[n]`, nodes, tour) | Content migrates into Inspector (M4); old page stays reachable until M4 ships, then delete |
+| `AuditPanel`, `ApproveMerge`, GitHub proxy, Onboarding, presentation mode | Keep (ApproveMerge gets gated by all-atoms-reviewed in M4) |
+| `/api/ai/canvas`, `/api/ai/function-trace`, `/api/ai/explain-file` | Keep until their consumers migrate; the atomizer is new code, not built on these |
+| Mock mode | Keep minimally working for offline demo fallback; do not invest |
+
+## 5. Milestones
+
+Estimates are working sessions (one focused Claude Code session ≈ half a day).
+
+### M0 — Foundation (0.5 session)
+Goal: clean base to build on.
+- [ ] Merge `unified-graph` → `main`, deploy, tag `v0-prototype`
+- [ ] Provision Neon Postgres (Vercel marketplace), env vars local + prod
+- [ ] Add drizzle + first migration with the §3 schema
+- [ ] Decide and pin the demo repos (Plot itself + one mid-size OSS TS repo)
+- [ ] **Spike (go/no-go):** parse one file with web-tree-sitter inside a route
+      handler on Vercel; if WASM grammars misbehave there, fall back plan =
+      index locally via a script that POSTs results (decide in-session)
+
+**Demoable:** nothing new; green build on main with DB connected.
+
+### M1 — Real knowledge base (2–3 sessions)
+Goal: replace regex with truth; persist it; lift the caps.
+- [ ] Tarball fetch of a repo at a ref through the proxy
+- [ ] Tree-sitter parse: files, exported + top-level symbols (name, kind,
+      line span, signature), import statements
+- [ ] Resolve imports (port the existing tsconfig-alias resolver onto AST
+      output), build file→file and symbol→symbol edges (real call expressions,
+      not regex word-matching)
+- [ ] Persist as a snapshot keyed by commit SHA; stable symbol keys `path::name`
+- [ ] Incremental: reindex only files whose hash changed between snapshots
+- [ ] `/api/kb/graph` serving the existing canvas payload shape; switch the
+      canvas to it; delete the old `/api/repo/*` routes
+- [ ] Raise limits: target ≤3k files, chunked indexing with progress endpoint
+- [ ] Onboarding shows real indexing progress (not a spinner)
+
+**Demoable:** onboard Plot + the OSS repo; graph view runs off Postgres; a
+stats line proves it (files/symbols/edges/snapshot SHA). Re-running ingest on
+an unchanged repo is near-instant.
+
+### M2 — Repository Brain with citations (2 sessions)
+Goal: the credibility mechanism, working.
+- [ ] Retrieval: pg FTS + trigram over symbol names, signatures, file paths;
+      `get_file_slice` for source windows
+- [ ] Tool-calling chat loop (server): `search_kb`, `get_symbol`,
+      `list_callers`, `list_callees`, `get_file_slice`, `get_pr_context`
+- [ ] Response contract: streamed blocks of claims, each
+      `{text, label: observed|stated|inferred, citations: [{path, lines, symbolKey}]}`
+- [ ] UI: rebuild Assistant content rendering: label chips on claims,
+      citations as clickable pills that navigate (graph focus / workbench
+      scroll); keep the FAB shell
+- [ ] PR-aware mode: when opened from a PR, PR title/body/diff summary are in
+      context and "stated by the author" becomes a real label source
+- [ ] Hard rule enforced server-side: a claim with no citation can only be
+      labeled `inferred`
+
+**Demoable:** on our repo, ask the 5 canned questions ("what does X do",
+"what depends on Y", "where do I start reviewing this PR", "what would break
+if Z changes", "explain this module") and click every citation to land on the
+code. No uncited `observed` claims anywhere.
+
+### M3 — Change atoms (2–3 sessions)
+Goal: the core primitive, trustworthy and persistent.
+- [ ] PR ingestion: files, patches, base/head SHA → persisted (`prs` table)
+- [ ] Atomizer v1: LLM pass over (diff + KB context for touched symbols:
+      callers, callees, tests nearby) → atoms with: behavioral title
+      ("session refresh now validates expiry", never "validator.ts changed"),
+      category, risk, ordered reading sequence, files + hunk ranges,
+      symbol keys, constraints, review cues, watch-outs (each with an
+      evidence pointer), evidence links
+- [ ] Traceability invariant: every atom maps to concrete hunks; every hunk
+      of the PR belongs to exactly one atom (leftovers go to a "chore" atom)
+- [ ] Re-atomize on head change with state carry-over (match atoms by
+      title/file overlap; carried atoms keep review state, changed ones reset)
+- [ ] Per-atom review state: mark reviewed at SHA; delta-since-last-visit =
+      atoms new or changed since your last reviewed SHA
+- [ ] **Quality gate:** golden set of 5 real PRs (mix: feature, fix, refactor,
+      AI-generated slop, mixed-concern). Manually score atom titles, grouping,
+      cue usefulness. Iterate the prompt until 4/5 feel right. This gate
+      decides if M4 starts.
+
+**Demoable:** `GET /api/pr/[n]/atoms` on a real PR returns atoms you would
+actually review by; a crude list UI shows them with their hunks.
+
+### M4 — The review surface (3 sessions)
+Goal: the product. Graph-default review, lane, inspector, workbench, approve.
+- [ ] New review layout at `/review/[pr]` (replaces `/pr/[n]` when done):
+      Header (boring: repo, PR identity, progress "3/7 atoms", approve button)
+- [ ] **Semantic Lane**: one chip per atom (`02 Session flow · Logic · 4 files`
+      + state ring), keyboard navigation, orderings: story (default) and risk
+- [ ] **Graph as default view**: the system map (existing canvas) with atom
+      pins placed at the centroid of their touched files/symbols, the reading
+      path drawn as numbered edges atom→atom, non-involved nodes dimmed.
+      Opens zoomed on atom 1. Guardrails implemented: never opens on the
+      whole-repo hairball; `v` toggles classic view; selection state shared
+      between both views
+- [ ] **Classic view**: linear atom list with inline diffs, same components
+- [ ] **Context Inspector** (right panel, per selected atom): what changed /
+      why it matters → constraints → review cues (checkboxes; all checked or
+      dismissed gates "mark reviewed") → watch-outs with evidence links →
+      compact scope (files, deps, +/-) → evidence/actions (open in workbench,
+      ask the Brain pre-filled)
+- [ ] **Workbench** (center bottom or modal): the atom's hunks rendered as a
+      real diff, with KB context links (callers, tests) alongside
+- [ ] Approve flow: all atoms reviewed → PR approve button arms (existing
+      ApproveMerge); partial state persists across visits; PR updated banner
+      shows "2 atoms changed since your review"
+- [ ] Telemetry events: view switches (graph↔classic), citation clicks,
+      cue interactions. One `/api/events` sink, one tiny stats page
+- [ ] Brain FAB available in review, PR-aware
+
+**Demoable:** full review of a real PR end to end: open → land on atom 1 on
+the map → walk the path → check cues → approve atoms → approve PR → push a
+new commit → see the delta. Switch to classic and back without losing state.
+
+### M5 — Hardening + demo readiness (1–2 sessions)
+Goal: it does not embarrass us in front of a stranger.
+- [ ] Onboarding polish: repo URL → progress → lands on the graph
+- [ ] Error/empty states: indexing failure, atomizer failure (fallback:
+      file-group atoms so review never blocks), rate limits, big-repo refusal
+      with a clear message
+- [ ] Perf pass: lane/inspector interactions instant; graph stable at demo
+      repo size; ingest progress honest
+- [ ] Demo seed: pick the demo PRs (2 prepared on the demo repo: one feature
+      with mixed concerns, one AI-generated PR), verify atom quality on them
+- [ ] Record a backup demo video; deploy prod; run the §8 script twice
+- [ ] Check telemetry actually recorded during the rehearsal
+
+**Demoable:** the §8 script, twice in a row, no incidents.
+
+### M6 — Stretch (post-MVP backlog, do not start before M5 ships)
+- Data-flow animation grounded in real KB edges (inspector evidence action)
+- Audit rollup across PRs fed by atom risk
+- Co-change evidence tier (git history mining) in watch-outs
+- Webhook sync (replace manual refresh)
+- Adaptive views (junior/senior/QA/security)
+- Investigation drawer lenses beyond the graph
+- Local/VPC story
+
+## 6. Sequencing and dependencies
+
+```
+M0 → M1 → M2 ─┐
+         └────┴→ M3 → M4 → M5
+```
+M2 and M3 both depend on M1 only; if two people/sessions run in parallel,
+Brain (M2) and Atomizer (M3) can be built side by side. M4 needs both.
+
+## 7. Risks while building
+
+| Risk | Mitigation |
+|---|---|
+| Atomizer quality is the product (biggest unknown) | Golden-PR gate at M3 before any UI investment; fallback file-group atoms keeps the surface usable |
+| tree-sitter WASM on Vercel misbehaves | M0 spike decides; fallback local indexing script posting to the API |
+| Graph-with-atoms is illegible on real repos | Guardrails are tasks, not ideas (zoom on atom 1, dimming, classic toggle); telemetry tells us the truth; founder pre-committed to flip default if users flee |
+| Indexing time/cost on real repos | 3k-file cap, chunking, per-SHA caching, changed-files-only incremental |
+| Token costs | mini model everywhere except atomizer; atomize once per head SHA, cached |
+| Scope creep toward the Notion's full design | §2 OUT list is the contract; M6 is where temptations go |
+
+## 8. The demo script (the MVP's definition of done)
+
+3–4 minutes, on the deployed app, real repo, no mocks:
+
+1. *"This is Daphne. You ship code you didn't write and approve changes you
+   don't fully understand. Daphne gives you back understanding of the system,
+   starting with every PR."*
+2. Paste repo URL → indexing progress → **the system graph appears**. 10 sec
+   tour: groups, edges, "this is the live map of the codebase, built from the
+   AST, stored, updated per commit."
+3. Open the demo PR → **lands zoomed on atom 1, on the map**, reading path
+   visible. *"Daphne broke this PR into 6 changes that mean something. Not
+   files. We review in this order."*
+4. Walk atoms 1→2: inspector shows constraints, cues, watch-outs. Check the
+   cues, mark reviewed. *"Every claim here links to the code that proves it"*
+   → click a citation, land on the code.
+5. Ask the Brain: *"what breaks if this function changes?"* → cited, labeled
+   answer. Click the citation.
+6. Press `v`: classic linear view, same state. *"If you hate maps, fine."*
+   Press `v` back.
+7. Approve remaining atoms → approve PR on GitHub, live.
+8. *"Push a new commit to the PR"* (prepared) → refresh → *"only this atom
+   changed since my review."* Close: *"Understanding, atom by atom, with
+   proof. That's Daphne."*
+
+## 9. Working agreements (how sessions run)
+
+- Start of session: open this file, pick the current milestone's next
+  unchecked tasks. End of session: check boxes, add a one-line log below,
+  deploy if green.
+- A milestone is done when its **Demoable** line works on the deployed app,
+  not when the code merges.
+- No starting M(n+1) before M(n)'s demoable passes (exception: M2/M3 parallel).
+- Vision questions go to the Notion doc, not this file. If a build decision
+  contradicts the vision, stop and flag it instead of silently deciding.
+- Keep `main` deployable; feature branches per milestone (`m1-kb`,
+  `m2-brain`, ...).
+
+## 10. Session log
+
+| Date | Session | Done |
+|---|---|---|
+| _..._ | | |
