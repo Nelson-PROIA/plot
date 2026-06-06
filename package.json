@@ -6,14 +6,20 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
     "@octokit/rest": "^22.0.1",
+    "@vscode/tree-sitter-wasm": "^0.3.1",
     "@xyflow/react": "^12.10.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dagre": "^0.8.5",
+    "drizzle-orm": "^0.45.2",
     "framer-motion": "^12.38.0",
     "gitdiff-parser": "^0.3.1",
     "lucide-react": "^1.16.0",
@@ -26,7 +32,8 @@
     "react-markdown": "^10.1.0",
     "refractor": "^5.0.0",
     "remark-gfm": "^4.0.1",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "web-tree-sitter": "^0.26.9"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -34,6 +41,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
