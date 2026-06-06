@@ -66,6 +66,12 @@ Guiding principle: *"Never make the reviewer reconstruct context that the system
 can attach directly to the changed artifact."* And: the product doesn't need to
 hide complexity — **it needs to sequence it**.
 
+The review experience must answer five questions, fast:
+**1. Intent** — what is this PR trying to accomplish? · **2. Structure** — which
+semantic parts make up the change? · **3. Flow** — in what order should I inspect
+it? · **4. Risk** — where is human attention most needed? · **5. Evidence** —
+what code/tests/history supports the assessment?
+
 ## 3. Core primitive — Change Atoms (semantic chunks)
 
 The unit of review is not a line, hunk, or file. It is a **semantic change atom**:
@@ -191,6 +197,11 @@ stack; *Daphne organizes the system change*. The strongest position is beside
 them, not head-on: their signals (review comments, stacks, CI) become inputs to
 Daphne's comprehension layer.
 
+The distinction in one line: **"AI comments help developers fix issues. AI
+comprehension helps reviewers trust decisions."** Even in an autonomous-validation
+future, the comprehension/trust layer survives — humans still audit, debug,
+override, and decide what to believe.
+
 What stays open (verified in their own positioning): the spatial/architectural
 comprehension surface — changed files as nodes, calls/data deps as edges,
 ownership & blast-radius overlays, before/after architecture, risky-path
@@ -249,19 +260,54 @@ Target stack for the real Repository Brain — replacing today's regex pipeline:
 - **Models:** Claude/GPT-class reasoning · Voyage/OpenAI code embeddings ·
   reranker
 
-## 8. Current prototype vs north star — what to keep, reshape, demote
+## 8. Gap analysis — what we have vs what Daphne proposes
 
-The repo today (branch `unified-graph`): 4-level granularity canvas
-(system→file→symbol→code), scroll-driven abstraction ladder, multi-PR overlay
-with dim/isolate, AI function traces with animated data flow, per-PR canvas with
-intent/risks/alternatives/tour, assistant, audit panel, GitHub proxy, Vercel
-deploy.
+Framing: **what's built here was the raw hackathon idea; Daphne is the target
+product** (aggregated research + deep thinking). This section is the concrete
+diff. Current build = branch `unified-graph`, deployed at plot-orpin.vercel.app.
+
+### 8.1 Pillar-by-pillar matrix
+
+| # | Daphne proposes | What we have today | Verdict |
+|---|---|---|---|
+| 1 | **Change atoms** — PR decomposed into semantic units ("session refresh now validates token expiry…") with files/deps/tests/risk/evidence each | Nothing chunk-based. Nearest: per-PR canvas nodes (intent/risk/diff cards) and file-level PR tinting — both file/PR-grained, not behavior-grained | ❌ **Missing — the core gap** |
+| 2 | **Workspace Header** — stable orientation: PR identity, CI state, review progress ("4 chunks · 1 high risk"), submit review | Thin headers: repo name + file/symbol counts on `/`; PR title + approve/merge on `/pr/[n]`. No CI, no progress, no review state | 🟡 Partial (cosmetic only) |
+| 3 | **Semantic Lane** — horizontal atom chips, programmable order (semantic/risk/workflow/test-failure), per-chip review state, hover preview cards | Nothing. The granularity pill switches abstraction levels (not a review path); the `/pr` tour sequences canvas nodes but isn't atom-based, has no state, no alternate orderings | ❌ Missing |
+| 4 | **Context Inspector** — per-atom: summary → **Constraints** → **Review Cues** (gating "mark reviewed") → **Watch Out For** (evidence-backed) → compact Scope → Evidence/Actions; Observed/Author-stated/Inferred separation; Evidence Strength chips | `PRDetailPanel`: AI intent summary, risk cards, touched-file list, Ask-Plot button. No constraints, no cues, no watch-outs-with-evidence, no fact/inference separation, no review gating | 🟡 Partial (a skeleton, ~2 of 7 sections) |
+| 5 | **Workbench** — the selected atom's diff surrounded by related functions, tests, docs, similar patterns | `DiffViewer` inside the `/pr` diff node (whole-PR unified diffs); code-level cards show symbol bodies. No per-atom view, no surrounding-context injection | 🟡 Partial |
+| 6 | **Investigation Drawer** — 8 lenses: Tests, Runs, Artifacts, Comments, Agents, History, **Architecture**, Docs & Contracts (+ custom lenses) | Exactly **one** lens exists — Architecture (the unified graph) — and it's currently the *home screen*, not a lens. Zero of the other seven | 🟡 1/8, inverted placement |
+| 7 | **Repository Brain** — evidence-grounded chat; every answer cites files/symbols/tests/PRs you can click; private-by-default vs shared artifacts; living memory updated on merge | `Assistant`: scope-aware chat (repo tree / PR meta / node context injected) — but answers are uncited prose; no clickable evidence, no private/shared model, no persistence, no learning on merge | 🟡 Partial (chat exists, trust layer doesn't) |
+| 8 | **Agent Command Center** — bounded agents (replay, test-gen, triage, coverage, artifact analysis, patch suggestion) with lifecycle view + **Claim Audit** | None. Nearest: FunctionTracePanel (one-shot AI data-flow trace) | ❌ Missing |
+| 9 | **KB/indexing** — Tree-sitter AST + SCIP cross-refs; Postgres + Qdrant + BM25; **Graphiti temporal graph** (living memory); concept layer (domains, boundaries, invariants, ownership) | Regex extraction (exports + import-resolution + heuristic call edges), ≤250 files, ≤80 parsed; CDN+localStorage caches, nothing persisted; no concepts, no ownership, no history | 🟡 Toy version (~roadmap step 3 of 10, heuristically) |
+| 10 | **Trust model** — visibly separate Evidence / Structure / Interpretation; Observed vs Author-stated vs Inferred; AI = context router | AI enrichment renders inferred intent/risks *as if factual*; no claim links to evidence | 🔴 **Conflicts** with the north star — current UX does what the docs warn against |
+| 11 | **Adaptive reviewer modes** — junior/senior/domain-owner/QA/security projections of the same PR | None (one fixed view for everyone) | ❌ Missing |
+| 12 | **Review progress & deltas** — per-atom reviewed state, "delta since last visit" (Gerrit patch-set model), file × revision matrix | None — no reviewed-state anywhere, every visit re-shows everything | ❌ Missing |
+
+### 8.2 What we have that the Notion doesn't (assets beyond the doc)
+
+Things built here that Daphne's pages don't specify — candidate differentiators
+to fold in (or consciously park), not silently lose:
+
+- **Granularity ladder** (system→file→symbol→code on scroll) — a working
+  abstraction instrument; Daphne's Architecture lens as described is static.
+- **Animated data-flow traces** (payload packets walking caller→fn→callee, with
+  drill-down + breadcrumbs) — concrete candidate for the Inspector's "inspect
+  dependency trace" action and the Workbench evidence panel.
+- **Multi-PR overlay** with union highlighting + dim/isolate toggle — proto
+  blast-radius visualization; Daphne mentions blast radius but specifies no UI.
+- **Live preview embed** per PR (deployment iframe) — maps to QA/Product mode
+  evidence; not in the Notion.
+- **Cross-PR risk Audit panel** — repo-wide risk rollup; Notion is single-PR scoped.
+- **Approve & merge from the tool**, presentation mode, guided tour engine,
+  mock/demo mode — workflow conveniences the docs don't cover.
 
 **The honest tension:** the Daphne docs explicitly critique freeform-canvas-first
 review — *"Represent the PR as a vertical stack of review slices, not a freeform
 graph… the reviewer gets a reading order"*; *"less visually exciting than a
 canvas, but much more useful."* The winning UX is **chunk-first, evidence-backed,
 graph-aware, progressively disclosed** — the graph is a lens, not the home.
+
+### 8.3 Disposition of current assets
 
 | Current asset | Daphne disposition |
 |---|---|
@@ -278,7 +324,14 @@ graph-aware, progressively disclosed** — the graph is a lens, not the home.
 Nothing is deleted; surfaces are re-homed. (Principle: never lose features —
 reorganize them.)
 
-### Proposed build sequence from here
+**Bottom line:** the hackathon build ≈ the Architecture lens + a proto-Inspector
++ a proto-Brain — roughly the *orientation* fifth of Daphne's surface area. The
+deepest gaps are the core primitive itself (change atoms), the review surface
+(lane + inspector ordering), the trust layer (evidence separation — where we
+currently *conflict*, not just lag), and review state. The KB needs its regex
+internals replaced but its API shape and stable IDs survive.
+
+### 8.4 Proposed build sequence from here
 
 1. **Phase A — Real KB** (roadmap #2–3): Tree-sitter extraction service, semantic
    symbols/refs, persist to Postgres, keep current API contract so the UI keeps
