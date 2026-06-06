@@ -220,6 +220,71 @@ Strategic notes from research:
   compliance-heavy software, where understanding+audit trail is mandatory.) Also
   noted: early-stage AI-heavy teams that ship fast and fear invisible tech debt.
 
+### 6.2 Web sweep (2026-06-06) — the field the Notion hadn't spotted
+
+31-agent research sweep (full cited report:
+[`docs/research/competitive-sweep-2026-06-06.md`](docs/research/competitive-sweep-2026-06-06.md)).
+Headline: **comprehension-first review is no longer blue ocean.** The two
+front-of-funnel pillars (change atoms + guided review path) are now a crowded
+consensus; defensibility narrows to the trust contract and the temporal KB.
+
+**Direct unspotted competitors (threat-ordered):**
+
+| Who | What | Overlap | What they still lack |
+|---|---|---|---|
+| **Stage** (YC P26) | "Chapters" = mini-PRs in optimal reading order + citation-backed chat; explicit anti-CodeRabbit positioning | Atoms + path + thin inspector | Whole-repo/temporal KB, architecture lens, named trust model |
+| **Devin Review** (Cognition) | Groups + reorders + explains hunks; copy/move detection; Ask Devin chat | Atoms + path + brain | Per-claim evidence citations, structured inspector, architecture lens |
+| **cubic.dev** (ex-**mrge.io** — renamed!) | "Cursor for code review": grouping, ordering, diagrams, deep-research chat, downstream-impact tracing | Broadest single-product overlap | Trust model, semantic-intent atoms, temporal KB |
+| **Entelligence** ($5M, Jan 2026) | Semantic graph, per-PR architecture/sequence diagrams, evidence chains to past incidents, adversarial verification — *near-verbatim Daphne pitch* | Architecture lens + brain + **evidence pillar** | Change-atom decomposition, human review path, separated Evidence/Structure/Interpretation |
+| **Unblocked** (~$30M) | Evidence-grounded, contradiction-reconciling, cited repo brain over code+Slack+Jira; new review product (Feb 2026) | Heaviest Repo-Brain overlap | Code-structure-first "why", evidence-strength spectrum, atoms/path/inspector |
+| **Baz** ($8M) | AST "Topics" (rigorous atoms), Change Request Graph, module memory | Atoms + diff-scoped graph + structural layer | Persistent/temporal whole-repo graph, trust model, atom-first UI |
+
+**Known vendors moved onto our turf:** CodeRabbit shipped **Atlas/"Change Stack"**
+(May 2026) — PR → ordered "change cohorts" with per-cohort summaries + diagrams,
+*the closest production analog to change atoms shipping today*. Graphite shipped
+**Code Tours** (Apr 2026). Also: DeepWiki/Google Code Wiki set the free baseline
+for cited repo chat; GitHub Copilot code review is default-on distribution.
+
+**Graveyard lessons (visualization-first products):** CodeSee (acqui-hired —
+couldn't convert maps to revenue; language-breadth cost), Sourcetrail (archived),
+Mutable.ai (acqui-hired → Google Code Wiki), Cosine/Buildt (pivoted to agents),
+Pierre (dead — "a beautiful review UI alone did not sustain a business"), and
+**Haystack pivoted away from its infinite-canvas review UI** ("too alien") to a
+linear walkthrough, then to AI triage. Unanimous lesson: **comprehension must be
+bound to the must-do PR workflow; visualization alone is a feature, not a
+business.** (Directly validates demoting our canvas to a lens.)
+
+**Hardest thesis challenges (no/partial rebuttal — treat as real risks):**
+1. The named tech stack (tree-sitter/SCIP/KG/Graphiti) is fully commoditized —
+   the index can never be the moat; only the UX + trust contract + workflow
+   coupling can.
+2. Copilot's default-on distribution can starve standalone tools regardless of
+   quality ("good enough + already there").
+3. Benchmarks score comment act-on-rate, not comprehension — Daphne either posts
+   a competitive number or defines the comprehension benchmark itself.
+4. The market is betting on agents reading code so humans don't; Daphne bets the
+   human merge-accountability moment survives. A bet, not a fact.
+
+**White space still genuinely open (post-sweep):**
+1. **Evidence-strength / trust-tier contract** — *nothing productized* grades
+   claims verified-vs-inferred per claim. Most defensible wedge. Daphne's
+   Observed/Stated/Inferred + Evidence Strength is still unclaimed territory.
+2. **Atoms as first-class, independently reviewable/approvable units** — everyone
+   ships AI summaries *over* a flat diff; re-segmenting the PR itself is open.
+   (Floor to match: Devin's copy/move detection, Baz's AST atoms.)
+3. **Temporal KG bound to the review moment** — graphs exist diff-scoped or
+   static; "the graph updates with the diff under review" is uncontested.
+4. **Differentiated evidence tiers** to fold into the Inspector: CodeScene-style
+   co-change/hotspot signals, AppMap-style runtime traces, GitDiagram's
+   validate-against-file-tree grounding trick.
+5. Sourcegraph's enterprise-only pivot leaves a **mid-market/individual gap** for
+   evidence-grounded repo intelligence.
+
+Also research validation: arXiv 2512.12117 (Dec 2025) publishes the recipe for
+citation-grounded code comprehension (92% citation accuracy, zero hallucinations)
+— de-risks our build, but removes secrecy as a moat. CodeMap (arXiv 2504.04553)
+gives academic backing for structured comprehension over chat.
+
 ## 7. MVP roadmap — Repository Brain first
 
 From the Daphne roadmap, the first milestone is **not** the canvas and **not**
