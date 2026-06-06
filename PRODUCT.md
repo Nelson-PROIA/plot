@@ -136,7 +136,8 @@ surface. (See market-analysis §4.)
 1. **Workspace Header**: deliberately boring. Global orientation only: PR
    identity, branches, CI, review progress ("4 atoms · 1 high risk · 2
    unresolved cues"), submit. No intelligence here.
-2. **Semantic Lane**: the home surface. One chip per atom (`02 Session Flow ·
+2. **Semantic Lane**: the ordered spine of the review, riding above the
+   default graph view (§4.4). One chip per atom (`02 Session Flow ·
    Logic · 4 files` + state), horizontally scannable, keyboard-navigable.
    Hover = preview card (~300–500ms; "why it matters", scope, next action).
    Selecting an atom synchronizes every surface. Ordering is **programmable**:
@@ -179,17 +180,39 @@ architecture, history, ownership, docs, current PR.
 - **Living memory.** The knowledge layer updates as PRs merge; architecture,
   concepts, and risks evolve with the system. Docs that maintain themselves.
 
-### 4.4 The graph (Architecture lens)
+### 4.4 The graph (default view — founder decision)
 
-The system graph (groups, files, symbols, call/import edges, ownership,
-blast radius) is Daphne's **impact instrument**: one click away, never the
-mandatory door. Science supports exactly this split: interactive graphs are ~5×
-better for relational questions (what calls this, what does this affect), while
-ordered/explained paths win for general review; the one product that made an
-infinite canvas the mandatory review surface (Haystack) retracted it ("too
-alien" per its founder). The prototype's granularity ladder
-(system → file → symbol → code), PR overlay with dim/isolate, and animated
-data-flow traces live here as the lens's instruments.
+The system graph (groups, files, symbols, call/import edges, ownership, blast
+radius) is the **default review surface**. A classic linear view of the same
+atoms is one click away for whoever wants it.
+
+Why default-graph: every tool opens on the classic view; opening on the system
+map *is* the differentiation, and it matches what Daphne sells (system
+understanding, not diff reading). The science backs the graph precisely on the
+impact questions ("what calls this", "what does this change affect": measured
+~5× better).
+
+The risk is known and owned: Haystack made a raw canvas the mandatory review
+surface and retracted it ("too alien"). The design requirements that separate
+Daphne's default from Haystack's canvas:
+
+1. **The review path is drawn on the graph.** Atoms are placed on the system
+   map and connected in reading order. The reviewer follows a guided path
+   through a map; they never wander an unordered canvas. (Haystack had arrows
+   and no order.)
+2. **Progressive disclosure.** A PR opens zoomed on atom 1 with its inspector,
+   not on the whole-repo hairball.
+3. **Instant escape hatch.** One click (or one key) to the classic linear
+   view, same atoms, same review state, no loss.
+4. **First-PR onboarding** is a guided tour of the surface.
+5. **Measured, not assumed.** Track view-switch rates and time-to-review. If
+   users flee to the classic view, flip the default; identity is not worth
+   usability.
+
+The prototype's granularity ladder (system → file → symbol → code), PR overlay
+with dim/isolate, and animated data-flow traces are this surface's
+instruments. The graph also remains available as the Architecture lens from
+any other context.
 
 ### 4.5 Adaptive reviewer modes
 
@@ -246,7 +269,9 @@ Full analysis: [`docs/research/market-analysis.md`](docs/research/market-analysi
   runtime).
 - **Graveyard lesson:** comprehension decoupled from a must-do workflow dies as
   a business even when loved (CodeSee, Sourcetrail); canvas-as-mandatory-review
-  was user-rejected once (Haystack). Hence: PR-review anchor + graph as lens.
+  was user-rejected once (Haystack). Founder decision: graph stays the
+  default anyway, for differentiation, with the §4.4 design requirements as
+  the guardrails and the classic view one click away.
 - **Hard risks:** second-wave speed, Copilot distribution, commodity tech (moat
   = experience + trust discipline + workflow coupling, never the index), and
   team size vs funded cohort, answered by focus and a different job-to-be-done.
@@ -277,14 +302,14 @@ granularity ladder (scroll system→file→symbol→code) · animated data-flow 
 radius) · live preview embeds per PR · cross-PR risk audit panel · approve &
 merge in-tool · presentation mode · tour engine · mock mode.
 
-**Disposition:** unified graph → the Architecture lens (its ladder, overlay and
-traces intact) · per-PR canvas content → Context Inspector sections · assistant
+**Disposition:** unified graph → the default review surface (its ladder,
+overlay and traces intact; review path drawn on it per §4.4) · per-PR canvas content → Context Inspector sections · assistant
 → Repository Brain (add citations, grading, privacy) · audit panel → kept,
 fed by atom-level risk · KB → replace regex internals with real parsing, keep
 stable IDs (`file::symbol`) and API shape · GitHub proxy/token model → keep.
 
-**Bottom line:** the prototype ≈ the Architecture lens + a proto-Inspector + a
-proto-Brain, the *orientation* fifth of Daphne. Deepest gaps: the core
+**Bottom line:** the prototype ≈ the default graph surface + a proto-Inspector
++ a proto-Brain, the *orientation* fifth of Daphne. Deepest gaps: the core
 primitive (atoms), the review surface (lane + inspector), the credibility layer
 (where we currently conflict, not just lag), and review state.
 
@@ -319,8 +344,10 @@ Phases from here:
   uncited fact.
 - **C, Atoms** (#4, #8): semantic chunking over KB + diff; atom schema (title,
   category, files, deps, constraints, cues, watch-outs, evidence, risk).
-- **D, The review surface** (#9–10): Lane + Inspector + Workbench; graph
-  demoted to lens; per-atom review state; delta-since-last-visit.
+- **D, The review surface** (#9–10): atoms placed on the graph with the
+  reading path drawn through them (default view), Lane + Inspector +
+  Workbench, classic linear view as the switch; per-atom review state;
+  delta-since-last-visit.
 - **E, Risk/tests** (#7): test-coverage linkage per atom; evidence-strength
   markers; co-change signals.
 
