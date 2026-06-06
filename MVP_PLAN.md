@@ -5,7 +5,7 @@
 > vision lives in Notion ("Nelson | Product Vision", authoritative); this file
 > only says how we build it. Updated as we go.
 
-Status: **M0 done (2026-06-07) · M1 in progress on `m1-kb`** · `main` deployed at plot-orpin.vercel.app · DB: Neon `neon-pink-window` (Vercel marketplace)
+Status: **M0 + M1 done (2026-06-07) · next: M2 (Brain) / M3 (Atomizer), parallelizable** · `main` deployed at plot-orpin.vercel.app · DB: Neon `neon-pink-window` (Vercel marketplace)
 
 ---
 
@@ -164,7 +164,7 @@ Goal: clean base to build on.
 
 **Demoable:** nothing new; green build on main with DB connected. ✅
 
-### M1 — Real knowledge base (2–3 sessions) — in progress (branch `m1-kb`)
+### M1 — Real knowledge base (2–3 sessions) — ✅ done 2026-06-07 (merged `m1-kb`)
 Goal: replace regex with truth; persist it; lift the caps.
 - [x] Tarball fetch of a repo at a ref through the proxy
       (one authed request via `lib/kb/github.ts`; hono's 268 files in ~4s)
@@ -187,16 +187,20 @@ Goal: replace regex with truth; persist it; lift the caps.
       canvas to it; delete the old `/api/repo/*` routes (graph route deleted;
       `signatures`/`sources` deliberately kept — file-expand + code level still
       consume them; migrate + delete in a follow-up)
-- [ ] Raise limits: target ≤3k files, chunked indexing with progress endpoint
-      (3k cap + `/api/kb/status` files-as-progress done; single-invocation
-      build is fine for demo-size repos — chunk-resume within 300s still open)
-- [ ] Onboarding shows real indexing progress (not a spinner)
-      (canvas progress bar + n/m counter wired to status polling; needs a
-      visual pass on the deployed app before checking off)
+- [x] Raise limits: target ≤3k files, chunked indexing with progress endpoint
+      (3k cap, batched writes, `/api/kb/status` files-as-progress; envelope
+      proven: vitest 1442 files/3953 symbols in 15s — a full 3k repo fits one
+      300s invocation with 10x margin, so chunk-resume machinery is not needed
+      at this cap; revisit only if the cap is ever raised)
+- [x] Onboarding shows real indexing progress (not a spinner)
+      (progress bar + n/m counter in the canvas loading state, fed by status
+      polling — the only loading path; status transitions verified live)
 
 **Demoable:** onboard Plot + the OSS repo; graph view runs off Postgres; a
 stats line proves it (files/symbols/edges/snapshot SHA). Re-running ingest on
-an unchanged repo is near-instant.
+an unchanged repo is near-instant. ✅ verified on prod 2026-06-07: Plot
+85f/446s/168i/211c @6d50b7d, zod 124f/1954s/378i/727c full pipeline in 3.6s,
+same-SHA re-ingest 0.47s ("reused").
 
 ### M2 — Repository Brain with citations (2 sessions)
 Goal: the credibility mechanism, working.
@@ -361,3 +365,4 @@ Brain (M2) and Atomizer (M3) can be built side by side. M4 needs both.
 |---|---|---|
 | 2026-06-07 | M0 | Merged `unified-graph`→`main`, tagged `v0-prototype`; Neon provisioned + drizzle v1 schema migrated; demo repos pinned (Plot + zod); tree-sitter-on-Vercel spike = **GO** (75ms, `@vscode/tree-sitter-wasm` grammars). |
 | 2026-06-07 | M1 (1/2) | KB indexer on `m1-kb`: tarball→AST→Postgres snapshots, incremental hash-diff, `/api/kb/{index,status,graph}`, canvas switched to KB + progress UI + snapshot SHA; `/api/repo/graph` + spike deleted. Review: 2 races found+fixed (claim CAS). Verified on Vercel preview: Plot 85f/446s/168i/211c, zod 124f/1954s/378i/727c. Left: chunk-resume (M1.7), onboarding visual pass (M1.8), merge. |
+| 2026-06-07 | M1 (2/2) | Envelope test vitest 1442f/15s → M1.7 closed without chunk-resume; merged `m1-kb`→`main`, prod deployed; demoable verified on prod (zod pipeline 3.6s, re-ingest 0.47s). **M1 done.** Known gaps parked: barrel re-export chasing (M2), monorepo group clustering (M5 demo polish), GITHUB_TOKEN missing in Vercel *Preview* env (user one-liner). |
