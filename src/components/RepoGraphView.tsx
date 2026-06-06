@@ -59,8 +59,9 @@ import {
   isStale,
   loadCachedGraph,
   saveGraph,
+  type KbRepoGraph,
 } from "@/lib/repo-graph/builder";
-import type { RepoGraph, RepoSymbol } from "@/lib/repo-graph/types";
+import type { RepoSymbol } from "@/lib/repo-graph/types";
 import {
   FILE_W,
   FILE_H,
@@ -386,13 +387,17 @@ function RepoGraphViewInner() {
   const assistant = useAssistant();
   const { zoomIn, zoomOut, fitView } = useReactFlow();
 
-  const [graph, setGraph] = useState<RepoGraph | null>(null);
+  const [graph, setGraph] = useState<KbRepoGraph | null>(null);
   const [meta, setMeta] = useState<RepoMeta | null>(null);
   const [prs, setPRs] = useState<PRSummary[]>([]);
   const [prFiles, setPrFiles] = useState<Map<number, Set<string>>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [indexProgress, setIndexProgress] = useState<{
+    indexedFiles: number;
+    fileCount: number | null;
+  } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenu>(null);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [focusedPRs, setFocusedPRs] = useState<Set<number>>(new Set());
@@ -438,7 +443,17 @@ function RepoGraphViewInner() {
       try {
         let g = loadCachedGraph(repo);
         if (!g || tick > 0) {
-          g = await buildRepoGraph(repo, token);
+          setIndexProgress(null);
+          g = await buildRepoGraph(repo, token, {
+            onProgress: (p) => {
+              if (!cancelled && p.status === "indexing") {
+                setIndexProgress({
+                  indexedFiles: p.indexedFiles,
+                  fileCount: p.fileCount,
+                });
+              }
+            },
+          });
           saveGraph(repo, g);
         }
         if (cancelled) return;
@@ -1516,6 +1531,17 @@ function RepoGraphViewInner() {
             {graph.files.length} files · {graph.symbols.length} symbols ·{" "}
             {graph.edges.length} imports · {graph.groups.length} groups ·{" "}
             {isStale(graph) ? "stale" : "fresh"}
+            {graph.stats?.snapshotSha ? (
+              <>
+                {" · "}
+                <span
+                  title={`KB snapshot ${graph.stats.snapshotSha}`}
+                  style={{ fontFamily: "var(--font-mono), monospace" }}
+                >
+                  {graph.stats.snapshotSha.slice(0, 7)}
+                </span>
+              </>
+            ) : null}
           </span>
         ) : null}
         <div className="ml-auto flex items-center gap-1.5">
@@ -1566,9 +1592,23 @@ function RepoGraphViewInner() {
               </p>
             </div>
           ) : loading && !graph ? (
-            <div className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Ingesting repo…
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-muted">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                {indexProgress
+                  ? `Indexing ${indexProgress.indexedFiles}${indexProgress.fileCount ? ` / ${indexProgress.fileCount}` : ""} files…`
+                  : "Ingesting repo…"}
+              </div>
+              {indexProgress?.fileCount ? (
+                <div className="h-1 w-48 overflow-hidden rounded-full bg-subtle">
+                  <div
+                    className="h-full rounded-full bg-foreground/40 transition-all duration-500"
+                    style={{
+                      width: `${Math.min(100, Math.round((indexProgress.indexedFiles / indexProgress.fileCount) * 100))}%`,
+                    }}
+                  />
+                </div>
+              ) : null}
             </div>
           ) : graph ? (
             <ReactFlow
