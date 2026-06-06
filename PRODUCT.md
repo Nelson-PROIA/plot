@@ -58,8 +58,18 @@ system and have confidence in it. So:
 
 This reframing is why the "agents-merge-agents kills review tools" risk (§6.2,
 challenge 4) is survivable: it kills *review-gate* products, not explainability
-products. It also makes the trust contract (evidence-graded claims) the heart of
-the product rather than a feature — confidence *is* the deliverable.
+products.
+
+**Positioning hierarchy (don't invert it):**
+1. **What Daphne is:** giving people back **understanding of what they build** —
+   system-wide; the PR is the atomic scope of that understanding.
+2. **Where it starts:** PR review, because that's the recurring moment where
+   understanding is needed and bought today.
+3. **What keeps it honest (mechanism, not headline):** grounding in the real
+   code graph + verifiable, evidence-linked claims. The trust contract is the
+   *how* — it makes the understanding credible and is the hardest part to copy
+   (§6.2) — but it is **not the pitch**. Pitch understanding; ship verifiability
+   inside it.
 
 ### The five missing contexts (why diffs fail)
 
