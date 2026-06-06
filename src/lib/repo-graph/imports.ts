@@ -143,8 +143,12 @@ function expandAlias(
 }
 
 function tryExtensions(target: string, files: Map<string, RepoFile>): string | null {
-  const candidates = [
-    target,
+  const candidates = [target];
+  // ESM-style specifiers in TS sources: `./x.js` resolves to `./x.ts(x)`
+  // (TypeScript moduleResolution node16/bundler). zod et al. import this way.
+  const esm = target.match(/^(.*)\.(js|jsx|mjs|cjs)$/);
+  if (esm) candidates.push(`${esm[1]}.ts`, `${esm[1]}.tsx`);
+  candidates.push(
     `${target}.ts`,
     `${target}.tsx`,
     `${target}.js`,
@@ -155,7 +159,7 @@ function tryExtensions(target: string, files: Map<string, RepoFile>): string | n
     `${target}/index.tsx`,
     `${target}/index.js`,
     `${target}/index.jsx`,
-  ];
+  );
   for (const c of candidates) if (files.has(c)) return c;
   return null;
 }

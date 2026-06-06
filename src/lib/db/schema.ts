@@ -38,6 +38,8 @@ export const snapshots = pgTable(
     indexedAt: timestamp("indexed_at", { withTimezone: true }),
     fileCount: integer("file_count"),
     status: text("status").notNull().default("pending"), // pending | indexing | ready | failed
+    /** Set when an indexer claims this snapshot; stale claims are reapable. */
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
   },
   (t) => [uniqueIndex("snapshots_repo_sha_idx").on(t.repoId, t.commitSha)],
 );

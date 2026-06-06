@@ -5,7 +5,7 @@
 > vision lives in Notion ("Nelson | Product Vision", authoritative); this file
 > only says how we build it. Updated as we go.
 
-Status: **M0 done (2026-06-07), M1 next** · `main` deployed at plot-orpin.vercel.app · DB: Neon `neon-pink-window` (Vercel marketplace)
+Status: **M0 done (2026-06-07) · M1 in progress on `m1-kb`** · `main` deployed at plot-orpin.vercel.app · DB: Neon `neon-pink-window` (Vercel marketplace)
 
 ---
 
@@ -164,20 +164,35 @@ Goal: clean base to build on.
 
 **Demoable:** nothing new; green build on main with DB connected. ✅
 
-### M1 — Real knowledge base (2–3 sessions)
+### M1 — Real knowledge base (2–3 sessions) — in progress (branch `m1-kb`)
 Goal: replace regex with truth; persist it; lift the caps.
-- [ ] Tarball fetch of a repo at a ref through the proxy
-- [ ] Tree-sitter parse: files, exported + top-level symbols (name, kind,
-      line span, signature), import statements
-- [ ] Resolve imports (port the existing tsconfig-alias resolver onto AST
+- [x] Tarball fetch of a repo at a ref through the proxy
+      (one authed request via `lib/kb/github.ts`; hono's 268 files in ~4s)
+- [x] Tree-sitter parse: files, exported + top-level symbols (name, kind,
+      line span, signature), import statements (`lib/kb/parse.ts`; real
+      `exported` flags, end lines, namespace + JSX call refs)
+- [x] Resolve imports (port the existing tsconfig-alias resolver onto AST
       output), build file→file and symbol→symbol edges (real call expressions,
-      not regex word-matching)
-- [ ] Persist as a snapshot keyed by commit SHA; stable symbol keys `path::name`
-- [ ] Incremental: reindex only files whose hash changed between snapshots
-- [ ] `/api/kb/graph` serving the existing canvas payload shape; switch the
-      canvas to it; delete the old `/api/repo/*` routes
+      not regex word-matching). Resolver gained ESM `.js→.ts` specifier
+      remapping (zod imports `./x.js` for `./x.ts`: 0→378 edges).
+      Known gap: `export * from` barrels aren't chased to the declaring file
+      (valibot-style codebases get few call edges; old code had the same
+      blindness) — revisit with M2 retrieval quality.
+- [x] Persist as a snapshot keyed by commit SHA; stable symbol keys `path::name`
+      (claim-based concurrency: single-statement CAS on `snapshots.claimed_at`,
+      stale claims reapable after 10min; racing indexers get `indexing` + poll)
+- [x] Incremental: reindex only files whose hash changed between snapshots
+      (adjacent-commit test: 79/84 files copied, 4 parsed; same-SHA: reused 1.5s)
+- [x] `/api/kb/graph` serving the existing canvas payload shape; switch the
+      canvas to it; delete the old `/api/repo/*` routes (graph route deleted;
+      `signatures`/`sources` deliberately kept — file-expand + code level still
+      consume them; migrate + delete in a follow-up)
 - [ ] Raise limits: target ≤3k files, chunked indexing with progress endpoint
+      (3k cap + `/api/kb/status` files-as-progress done; single-invocation
+      build is fine for demo-size repos — chunk-resume within 300s still open)
 - [ ] Onboarding shows real indexing progress (not a spinner)
+      (canvas progress bar + n/m counter wired to status polling; needs a
+      visual pass on the deployed app before checking off)
 
 **Demoable:** onboard Plot + the OSS repo; graph view runs off Postgres; a
 stats line proves it (files/symbols/edges/snapshot SHA). Re-running ingest on
@@ -345,3 +360,4 @@ Brain (M2) and Atomizer (M3) can be built side by side. M4 needs both.
 | Date | Session | Done |
 |---|---|---|
 | 2026-06-07 | M0 | Merged `unified-graph`→`main`, tagged `v0-prototype`; Neon provisioned + drizzle v1 schema migrated; demo repos pinned (Plot + zod); tree-sitter-on-Vercel spike = **GO** (75ms, `@vscode/tree-sitter-wasm` grammars). |
+| 2026-06-07 | M1 (1/2) | KB indexer on `m1-kb`: tarball→AST→Postgres snapshots, incremental hash-diff, `/api/kb/{index,status,graph}`, canvas switched to KB + progress UI + snapshot SHA; `/api/repo/graph` + spike deleted. Review: 2 races found+fixed (claim CAS). Verified on Vercel preview: Plot 85f/446s/168i/211c, zod 124f/1954s/378i/727c. Left: chunk-resume (M1.7), onboarding visual pass (M1.8), merge. |
