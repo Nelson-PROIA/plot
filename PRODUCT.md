@@ -30,17 +30,22 @@
    the recurring, must-do moment where understanding is needed and bought
    today. Understanding is also precisely what makes you review well.
 3. **The credibility mechanism (not the headline):** everything Daphne says is
-   grounded in the real code graph, and its claims are verifiable, separable
-   into observed fact, author-stated intent, and inference, each with evidence
-   behind it. This is the hardest part to copy and the reason Daphne's
-   explanations can be believed. It ships inside the product; it is not the
-   pitch.
+   grounded in the real code, with clickable citations, and claims carry a
+   simple source label (observed in the code / stated by the author / inferred
+   by the model). Full evidence grading (scoring how strong each claim is) is
+   a vast evaluation topic of its own: a later layer, not the core bet.
 
 **Long-term invariance:** if the human review loop shrinks (agents merging
 agents), the entry surface moves (system briefings, change digests, incident
 explainers, audit trails, drift reports) but the core does not: **someone
 accountable must always be able to answer "what is this system doing, what
 changed, and why should I trust it."** Daphne is how they answer.
+
+**The differentiation bet:** the market is scattered bricks. Grouping here,
+ordering there, repo chat here, graphs there, citations everywhere; each
+competitor ships a fragment. Daphne gathers the bricks into **one simple,
+coherent product**. The integration is the moat, the way Linear beat
+Jira-plus-plugins.
 
 Discipline that follows: **sell review, build explainability.** Never let the
 wedge become the identity (comment-bot trap), never pitch the mechanism as the
@@ -170,10 +175,9 @@ architecture, history, ownership, docs, current PR.
 
 - **Evidence-grounded, always.** Answers cite files, symbols, tests, past PRs.
   Citations are clickable and navigate the UI. No unsupported guesses.
-- **Claims are graded.** Observed (here's the line) ≠ author-stated (from the
-  PR description) ≠ inferred (the model's reading), with evidence strength
-  (diff-only < dependency trace < failing test < incident < runtime artifact).
-  This is the credibility mechanism of §1.3 made concrete.
+- **Claims carry their source.** A lightweight label: observed (here's the
+  line) ≠ author-stated (from the PR description) ≠ inferred (the model's
+  reading). Full evidence-strength scoring is a later layer (§1.3).
 - **Private by default.** Reviewers explore naïvely in private; only
   intentional artifacts are shared. The tool must never feel like surveillance;
   adoption depends on it.
@@ -263,10 +267,11 @@ Full analysis: [`docs/research/market-analysis.md`](docs/research/market-analysi
 - **2nd wave (comprehension-review)**: chunk+order shipped at CodeRabbit
   (Atlas), Devin, Stage, cubic, Graphite in the last ~12 months. Validates the
   thesis; consumes the easy half. We must ship what they lack.
-- **Still open (verified):** per-claim evidence grading (verified vs inferred)
-  · atoms as first-class approvable units · a living temporal repo graph bound
-  to the review moment · combined evidence tiers (static + co-change +
-  runtime).
+- **Still open (verified):** the integrated whole (every competitor ships a
+  fragment; nobody gathers atoms + path + brain + graph + review state into
+  one simple product) · atoms as first-class approvable units · a living
+  temporal repo graph bound to the review moment · per-claim evidence grading
+  (open slot, but a hard evaluation problem: later layer, not the core bet).
 - **Graveyard lesson:** comprehension decoupled from a must-do workflow dies as
   a business even when loved (CodeSee, Sourcetrail); canvas-as-mandatory-review
   was user-rejected once (Haystack). Founder decision: graph stays the
@@ -339,7 +344,8 @@ Phases from here:
 - **A, Real KB** (#2–3): Tree-sitter extraction, semantic symbols/refs,
   persist (Postgres), keep API shape; lift the file cap.
 - **B, Credible Brain** (#5–6): citations in every answer (clickable,
-  navigating the UI), observed/stated/inferred grading, private-by-default.
+  navigating the UI), observed/stated/inferred source labels,
+  private-by-default.
   Also resolves the one 🔴 in §7 (row 10): stop rendering inference as
   uncited fact.
 - **C, Atoms** (#4, #8): semantic chunking over KB + diff; atom schema (title,
@@ -348,8 +354,8 @@ Phases from here:
   reading path drawn through them (default view), Lane + Inspector +
   Workbench, classic linear view as the switch; per-atom review state;
   delta-since-last-visit.
-- **E, Risk/tests** (#7): test-coverage linkage per atom; evidence-strength
-  markers; co-change signals.
+- **E, Risk/tests** (#7): test-coverage linkage per atom; co-change signals;
+  evidence-strength scoring if and when it earns its place.
 
 **Technical direction** (Notion `V – Technical`): Tree-sitter (AST,
 incremental) · SCIP (cross-file refs) · ripgrep · Semgrep/ast-grep, Postgres

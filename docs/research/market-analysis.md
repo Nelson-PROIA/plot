@@ -109,7 +109,10 @@ matters.
 **Read:** evidence-*linked* repo chat is commoditizing (DeepWiki free, recipe
 published in arXiv 2512.12117, 92% citation accuracy, zero hallucinations on
 the benchmark). Evidence-*graded* answers (verified vs structural vs inferred,
-per claim) remain unshipped by anyone, verified by a targeted sweep.
+per claim) remain unshipped by anyone, verified by a targeted sweep. Note: an
+empty slot can also mean a hard problem; full claim grading is an answer-
+evaluation topic of its own. Daphne treats it as a later layer, not the core
+bet. The core bet is the integration: every product above ships a fragment.
 
 ## 6. Graveyard, fact-checked (what actually killed them)
 
@@ -150,10 +153,11 @@ mandatory review surface*; (3) platforms absorb comprehension features
   novices can fail to exploit them. Software-viz SLRs: ~62% of approaches lack
   rigorous evaluation; UML adoption declined.
 
-**Design conclusion the evidence supports:** default to an ordered, explained
-reading path; keep the graph one click away for the relational questions where
-it objectively wins (impact, callers, blast radius). Never force the canvas as
-the door.
+**Design conclusion the evidence supports:** an ordered, explained reading
+path, with the graph one click away for the relational questions where it
+objectively wins (impact, callers, blast radius). Founder decision diverges
+deliberately: graph is the default, with the reading path drawn on it and the
+classic view one click away (guardrails in PRODUCT.md §4.4).
 
 *(Note: the percentages above are author-reported by the respective papers and
 were not independently replicated.)*
@@ -164,18 +168,23 @@ were not independently replicated.)*
 understand. Daphne gives you back understanding of the system you're building,
 starting with every PR."*
 
-What Daphne combines that no verified competitor does:
+The differentiation is the **combination itself**: the market is scattered
+bricks and every competitor ships a fragment. What Daphne gathers into one
+simple product, that no verified competitor does:
 1. **System-wide understanding as the product** (not bug-finding, not workflow
    speed), with the PR as the atomic scope and the market entry.
 2. **Change atoms as first-class reviewable units**: not AI prose layered on a
    flat diff (the gap Atlas/Stage/cubic all leave).
 3. **Credibility machinery**: every explanation grounded in the real code
-   graph, claims separable into observed / author-stated / inferred with
-   evidence strength, unshipped by anyone (mechanism, not headline).
+   graph with clickable citations, plus a lightweight source label per claim
+   (observed / author-stated / inferred). Full evidence grading: later layer,
+   hard evaluation problem, not the core bet.
 4. **A living, temporal repo graph bound to the review moment**: competitors
    are diff-scoped (Baz) or static onboarding artifacts (DeepWiki).
-5. **The graph as an earned lens** for impact/architecture questions, where
-   science says it wins, without repeating Haystack's canvas-as-home mistake.
+5. **The system graph as the default view** (founder decision, for
+   differentiation), with the reading path drawn on it and a classic linear
+   view one click away. Guardrails against Haystack's canvas failure are in
+   PRODUCT.md §4.4.
 
 Supporting wedges: local/VPC deployment (CodeRabbit's security incident makes
 "third-party AI with full repo access" a procurement blocker, from Pietro's
