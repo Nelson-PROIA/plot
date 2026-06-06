@@ -15,6 +15,13 @@
       "when": 1780785155850,
       "tag": "0001_clammy_spirit",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780787437226,
+      "tag": "0002_shallow_firestar",
+      "breakpoints": true
     }
   ]
 }

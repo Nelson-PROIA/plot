@@ -143,6 +143,34 @@ export async function buildRepoGraph(
     throw new Error(body.error ?? `Indexing failed (HTTP ${indexResponse.status})`);
   }
 
+  // `indexing` = another request holds the build claim (e.g. second tab);
+  // keep polling status until that build finishes.
+  const body = (await indexResponse.json().catch(() => ({}))) as {
+    status?: string;
+  };
+  if (body.status === "indexing") {
+    while (Date.now() - startedAt < TIMEOUT_MS) {
+      await sleep(1200);
+      try {
+        const res = await fetch(
+          `/api/kb/status?owner=${encodeURIComponent(ref.owner)}&repo=${encodeURIComponent(ref.repo)}`,
+        );
+        if (!res.ok) continue;
+        const p = (await res.json()) as {
+          status: string;
+          indexedFiles: number;
+          fileCount: number | null;
+        };
+        opts?.onProgress?.(p);
+        if (p.status === "ready") break;
+        if (p.status === "failed") throw new Error("Indexing failed");
+      } catch (e) {
+        if (e instanceof Error && e.message === "Indexing failed") throw e;
+        /* transient poll failure — keep going */
+      }
+    }
+  }
+
   const graph = await fetchKbGraph(ref);
   if (!graph) throw new Error("Indexing finished but no ready snapshot found");
   return graph;

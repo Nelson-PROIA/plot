@@ -1,4 +1,4 @@
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, lt, ne, or, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { edges, files, repos, snapshots, symbols } from "@/lib/db/schema";
 import {
@@ -42,7 +42,8 @@ export type IndexOptions = {
 export type IndexResult = {
   snapshotId: number;
   commitSha: string;
-  status: "ready" | "reused";
+  /** `indexing` = another request holds the claim; poll /api/kb/status. */
+  status: "ready" | "reused" | "indexing";
   stats: {
     files: number;
     symbols: number;
@@ -84,31 +85,64 @@ export async function indexRepo(opts: IndexOptions): Promise<IndexResult> {
     })
     .returning({ id: repos.id });
 
-  const existing = await db
-    .select({ id: snapshots.id, status: snapshots.status })
-    .from(snapshots)
-    .where(and(eq(snapshots.repoId, repoRow.id), eq(snapshots.commitSha, commitSha)));
+  // Create-or-claim the snapshot row. Each statement is atomic (autocommit),
+  // which is all the isolation neon-http gives us — so the claim must be a
+  // single conditional UPDATE, never select-then-branch (review: two racing
+  // index calls used to double-wipe the same snapshot mid-build).
+  const created = await db
+    .insert(snapshots)
+    .values({
+      repoId: repoRow.id,
+      commitSha,
+      status: "indexing",
+      claimedAt: new Date(),
+    })
+    .onConflictDoNothing({ target: [snapshots.repoId, snapshots.commitSha] })
+    .returning({ id: snapshots.id });
 
   let snapshotId: number;
-  if (existing.length > 0) {
-    if (existing[0].status === "ready" && !opts.force) {
-      const stats = await snapshotStats(existing[0].id);
-      return { snapshotId: existing[0].id, commitSha, status: "reused", stats };
+  if (created.length > 0) {
+    snapshotId = created[0].id;
+  } else {
+    const [existing] = await db
+      .select({ id: snapshots.id, status: snapshots.status })
+      .from(snapshots)
+      .where(
+        and(eq(snapshots.repoId, repoRow.id), eq(snapshots.commitSha, commitSha)),
+      );
+    if (existing.status === "ready" && !opts.force) {
+      const stats = await snapshotStats(existing.id);
+      return { snapshotId: existing.id, commitSha, status: "reused", stats };
     }
-    snapshotId = existing[0].id;
-    // wipe partial/forced snapshot: files cascade symbols; edges explicit
+    // CAS claim: succeeds iff nobody is actively indexing. A claim older
+    // than STALE_CLAIM_MS is reapable (crashed/timed-out build).
+    const STALE_CLAIM_MS = 10 * 60 * 1000;
+    const claimed = await db
+      .update(snapshots)
+      .set({ status: "indexing", claimedAt: new Date(), indexedAt: null, fileCount: null })
+      .where(
+        and(
+          eq(snapshots.id, existing.id),
+          or(
+            ne(snapshots.status, "indexing"),
+            lt(snapshots.claimedAt, sql`now() - interval '${sql.raw(String(STALE_CLAIM_MS / 1000))} seconds'`),
+          ),
+        ),
+      )
+      .returning({ id: snapshots.id });
+    if (claimed.length === 0) {
+      // someone else holds the claim — tell the caller to poll status
+      return {
+        snapshotId: existing.id,
+        commitSha,
+        status: "indexing",
+        stats: { files: 0, symbols: 0, importEdges: 0, callEdges: 0, parsedFiles: 0, copiedFiles: 0, droppedFiles: 0 },
+      };
+    }
+    snapshotId = existing.id;
+    // we hold the claim: wipe prior rows (files cascade symbols; edges explicit)
     await db.delete(edges).where(eq(edges.snapshotId, snapshotId));
     await db.delete(files).where(eq(files.snapshotId, snapshotId));
-    await db
-      .update(snapshots)
-      .set({ status: "indexing", indexedAt: null, fileCount: null })
-      .where(eq(snapshots.id, snapshotId));
-  } else {
-    const [row] = await db
-      .insert(snapshots)
-      .values({ repoId: repoRow.id, commitSha, status: "indexing" })
-      .returning({ id: snapshots.id });
-    snapshotId = row.id;
   }
 
   try {
