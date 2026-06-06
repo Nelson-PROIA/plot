@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const started = Date.now();
   try {
-    const result = await db.execute(sql`
+    const result = await getDb().execute(sql`
       select table_name
       from information_schema.tables
       where table_schema = 'public'

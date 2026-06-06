@@ -8,6 +8,13 @@
       "when": 1780784202148,
       "tag": "0000_soft_princess_powerful",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780785155850,
+      "tag": "0001_clammy_spirit",
+      "breakpoints": true
     }
   ]
 }

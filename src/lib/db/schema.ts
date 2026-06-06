@@ -1,5 +1,7 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -105,6 +107,15 @@ export const edges = pgTable(
     index("edges_snapshot_kind_idx").on(t.snapshotId, t.kind),
     index("edges_src_symbol_idx").on(t.srcSymbolId),
     index("edges_dst_symbol_idx").on(t.dstSymbolId),
+    // Turn malformed-endpoint indexer bugs into insert failures.
+    check(
+      "edges_src_one_endpoint",
+      sql`num_nonnulls(${t.srcSymbolId}, ${t.srcFileId}) = 1`,
+    ),
+    check(
+      "edges_dst_one_endpoint",
+      sql`num_nonnulls(${t.dstSymbolId}, ${t.dstFileId}) = 1`,
+    ),
   ],
 );
 

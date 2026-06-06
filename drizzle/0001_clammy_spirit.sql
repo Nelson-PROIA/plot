@@ -1,0 +1,2 @@
+ALTER TABLE "edges" ADD CONSTRAINT "edges_src_one_endpoint" CHECK (num_nonnulls("edges"."src_symbol_id", "edges"."src_file_id") = 1);--> statement-breakpoint
+ALTER TABLE "edges" ADD CONSTRAINT "edges_dst_one_endpoint" CHECK (num_nonnulls("edges"."dst_symbol_id", "edges"."dst_file_id") = 1);

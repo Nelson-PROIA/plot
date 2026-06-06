@@ -5,7 +5,7 @@
 > vision lives in Notion ("Nelson | Product Vision", authoritative); this file
 > only says how we build it. Updated as we go.
 
-Status: **M0 not started** · Prototype branch `unified-graph` deployed at plot-orpin.vercel.app
+Status: **M0 done (2026-06-07), M1 next** · `main` deployed at plot-orpin.vercel.app · DB: Neon `neon-pink-window` (Vercel marketplace)
 
 ---
 
@@ -140,17 +140,29 @@ POST /api/events              telemetry
 
 Estimates are working sessions (one focused Claude Code session ≈ half a day).
 
-### M0 — Foundation (0.5 session)
+### M0 — Foundation (0.5 session) — ✅ done 2026-06-07
 Goal: clean base to build on.
-- [ ] Merge `unified-graph` → `main`, deploy, tag `v0-prototype`
-- [ ] Provision Neon Postgres (Vercel marketplace), env vars local + prod
-- [ ] Add drizzle + first migration with the §3 schema
-- [ ] Decide and pin the demo repos (Plot itself + one mid-size OSS TS repo)
-- [ ] **Spike (go/no-go):** parse one file with web-tree-sitter inside a route
-      handler on Vercel; if WASM grammars misbehave there, fall back plan =
-      index locally via a script that POSTs results (decide in-session)
+- [x] Merge `unified-graph` → `main`, deploy, tag `v0-prototype`
+- [x] Provision Neon Postgres (Vercel marketplace), env vars local + prod
+      (resource `neon-pink-window`; `DATABASE_URL` in dev/preview/prod)
+- [x] Add drizzle + first migration with the §3 schema
+      (`drizzle/0000_*.sql` applied; `pnpm db:generate` / `db:migrate`;
+      `/api/db/health` proves connectivity from the deployed app)
+- [x] Decide and pin the demo repos: **Plot itself + `colinhacks/zod`**
+      (zod: 401 TS files, layered v4 core←classic/mini import graph, real
+      5–9-file PRs — e.g. #5926 circular-import refactor, #5929 preprocess
+      optionality. Scope indexing to `packages/zod`, filter tests. Runner-up
+      if zod disappoints: `excalidraw/excalidraw`)
+- [x] **Spike (go/no-go): GO** — `/api/spike/parse` parses TS with
+      web-tree-sitter 0.26 on Vercel (iad1): init 42ms + grammar 26ms +
+      parse 7ms. No local-indexing fallback needed. Hard-won details for M1:
+      grammars from `@vscode/tree-sitter-wasm` (`tree-sitter-wasms` ships
+      legacy-dylink wasm, incompatible); `serverExternalPackages:
+      ["web-tree-sitter"]` + `outputFileTracingIncludes` ships the .wasm;
+      load grammar bytes from `process.cwd()/node_modules/...` (createRequire
+      subpath resolution fails under the package's exports map)
 
-**Demoable:** nothing new; green build on main with DB connected.
+**Demoable:** nothing new; green build on main with DB connected. ✅
 
 ### M1 — Real knowledge base (2–3 sessions)
 Goal: replace regex with truth; persist it; lift the caps.
@@ -332,4 +344,4 @@ Brain (M2) and Atomizer (M3) can be built side by side. M4 needs both.
 
 | Date | Session | Done |
 |---|---|---|
-| _..._ | | |
+| 2026-06-07 | M0 | Merged `unified-graph`→`main`, tagged `v0-prototype`; Neon provisioned + drizzle v1 schema migrated; demo repos pinned (Plot + zod); tree-sitter-on-Vercel spike = **GO** (75ms, `@vscode/tree-sitter-wasm` grammars). |
