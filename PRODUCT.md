@@ -369,11 +369,13 @@ reranker. All commodity (see risks): the stack is the floor, not the moat.
 2. **Build the Brain MVP, in parallel.** Concretely: real code indexing
    (Tree-sitter, replacing the prototype's regex parsing), then a chat that
    answers repo and PR questions with clickable code citations. Run it on our
-   own repos first. This is roadmap steps 1–6 (phases A–B) and the foundation
-   everything else builds on.
-3. **Then 3 real teams.** Kill/continue signal: do reviewers *click the
-   evidence links*? If they trust without checking, credibility isn't the
-   buying trigger; reposition toward where proof is mandatory.
+   own repos first (roadmap phases A–B).
+3. **Pilot with a few real teams.** Once the MVP works on our own repos, get
+   roughly 3 outside teams to use it on their actual PRs for a couple of
+   weeks (survey contacts are the natural pool). The signal: do reviewers
+   *click the evidence links* and use the answers, or trust blindly? If they
+   never check, credibility isn't the buying trigger; reposition toward where
+   proof is mandatory.
 4. **Decide with data:** general dev tool vs niche, based on what the survey
    and the pilots say.
 
