@@ -1,8 +1,9 @@
 # Daphne — Product Document
 
 > **The working north star — latest founder vision.** The ⏪ Daphne Notion
-> (Pietro's gathered research + thinking, 21 pages, crawled in full) is the
-> **starting point**; this document supersedes it where they differ, folding in
+> (Pietro's gathered research + thinking, 21 pages, crawled in full
+> 2026-06-06) is the **starting point**; this document supersedes it where
+> they differ, folding in
 > the positioning decisions made since, the current prototype (this repo), and
 > hard market research. Competitive depth:
 > [`docs/research/market-analysis.md`](docs/research/market-analysis.md).
