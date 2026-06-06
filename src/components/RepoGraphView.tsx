@@ -6,9 +6,11 @@ import {
   ReactFlowProvider,
   Background,
   BackgroundVariant,
+  Handle,
   MarkerType,
   MiniMap,
   Panel,
+  Position,
   useReactFlow,
   type Edge,
   type Node,
@@ -155,6 +157,18 @@ function FileNode({ data, selected }: NodeProps<Node<FileNodeData, "file">>) {
       }}
       className="group relative flex flex-col overflow-hidden rounded-md border text-[10.5px] text-foreground transition-colors duration-200 hover:border-foreground/50"
     >
+      {/* xyflow v12 silently drops edges between nodes without handles —
+          these invisible anchors are what make import edges render at all. */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        style={{ opacity: 0, pointerEvents: "none" }}
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        style={{ opacity: 0, pointerEvents: "none" }}
+      />
       <span
         aria-hidden
         className="absolute left-0 top-0 h-full w-[3px]"
